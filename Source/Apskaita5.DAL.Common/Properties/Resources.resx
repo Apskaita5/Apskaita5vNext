@@ -1,0 +1,327 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <!-- 
+    Microsoft ResX Schema 
+    
+    Version 2.0
+    
+    The primary goals of this format is to allow a simple XML format 
+    that is mostly human readable. The generation and parsing of the 
+    various data types are done through the TypeConverter classes 
+    associated with the data types.
+    
+    Example:
+    
+    ... ado.net/XML headers & schema ...
+    <resheader name="resmimetype">text/microsoft-resx</resheader>
+    <resheader name="version">2.0</resheader>
+    <resheader name="reader">System.Resources.ResXResourceReader, System.Windows.Forms, ...</resheader>
+    <resheader name="writer">System.Resources.ResXResourceWriter, System.Windows.Forms, ...</resheader>
+    <data name="Name1"><value>this is my long string</value><comment>this is a comment</comment></data>
+    <data name="Color1" type="System.Drawing.Color, System.Drawing">Blue</data>
+    <data name="Bitmap1" mimetype="application/x-microsoft.net.object.binary.base64">
+        <value>[base64 mime encoded serialized .NET Framework object]</value>
+    </data>
+    <data name="Icon1" type="System.Drawing.Icon, System.Drawing" mimetype="application/x-microsoft.net.object.bytearray.base64">
+        <value>[base64 mime encoded string representing a byte array form of the .NET Framework object]</value>
+        <comment>This is a comment</comment>
+    </data>
+                
+    There are any number of "resheader" rows that contain simple 
+    name/value pairs.
+    
+    Each data row contains a name, and value. The row also contains a 
+    type or mimetype. Type corresponds to a .NET class that support 
+    text/value conversion through the TypeConverter architecture. 
+    Classes that don't support this are serialized and stored with the 
+    mimetype set.
+    
+    The mimetype is used for serialized objects, and tells the 
+    ResXResourceReader how to depersist the object. This is currently not 
+    extensible. For a given mimetype the value must be set accordingly:
+    
+    Note - application/x-microsoft.net.object.binary.base64 is the format 
+    that the ResXResourceWriter will generate, however the reader can 
+    read any of the formats listed below.
+    
+    mimetype: application/x-microsoft.net.object.binary.base64
+    value   : The object must be serialized with 
+            : System.Runtime.Serialization.Formatters.Binary.BinaryFormatter
+            : and then encoded with base64 encoding.
+    
+    mimetype: application/x-microsoft.net.object.soap.base64
+    value   : The object must be serialized with 
+            : System.Runtime.Serialization.Formatters.Soap.SoapFormatter
+            : and then encoded with base64 encoding.
+
+    mimetype: application/x-microsoft.net.object.bytearray.base64
+    value   : The object must be serialized into a byte array 
+            : using a System.ComponentModel.TypeConverter
+            : and then encoded with base64 encoding.
+    -->
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="ApplicationRoleSchemaList_DataErrorsHeader" xml:space="preserve">
+    <value>Data errors for application roles schemas:</value>
+  </data>
+  <data name="ApplicationRoleSchemaList_SchemaIsNotChild" xml:space="preserve">
+    <value>Schema is not a child of the current list.</value>
+  </data>
+  <data name="ApplicationRoleSchema_DataErrorsHeader" xml:space="preserve">
+    <value>Data errors for the role {0}:</value>
+  </data>
+  <data name="ApplicationRoleSchema_RoleNameContainsBlankSpaces" xml:space="preserve">
+    <value>Role name cannot have blank spaces.</value>
+  </data>
+  <data name="ApplicationRoleSchema_RoleNameNull" xml:space="preserve">
+    <value>Role name is not specified.</value>
+  </data>
+  <data name="DbFieldSchema_AutoincrementInvalid" xml:space="preserve">
+    <value>Cannot autoincrement non integer value.</value>
+  </data>
+  <data name="DbFieldSchema_EnumValuesNull" xml:space="preserve">
+    <value>Enum values are not specified.</value>
+  </data>
+  <data name="DbFieldSchema_EnumValuesTooShort" xml:space="preserve">
+    <value>At least two enum values should be specified.</value>
+  </data>
+  <data name="DbFieldSchema_ErrorStringHeader" xml:space="preserve">
+    <value>Data errors for field {0} {1}({2}):</value>
+  </data>
+  <data name="DbFieldSchema_FieldLengthNegative" xml:space="preserve">
+    <value>Field length cannot be negative.</value>
+  </data>
+  <data name="DbFieldSchema_FieldNameContainsBlankSpaces" xml:space="preserve">
+    <value>Field name cannot have blank spaces.</value>
+  </data>
+  <data name="DbFieldSchema_FieldNameNull" xml:space="preserve">
+    <value>Field name is not specified.</value>
+  </data>
+  <data name="DbFieldSchema_IndexNameNull" xml:space="preserve">
+    <value>Index name is not specified.</value>
+  </data>
+  <data name="DbFieldSchema_RefFieldNull" xml:space="preserve">
+    <value>Referenced field is not specified.</value>
+  </data>
+  <data name="DbFieldSchema_RefTableNull" xml:space="preserve">
+    <value>Referenced table is not specified.</value>
+  </data>
+  <data name="DbSchemaError_EmptySqlStatementInList" xml:space="preserve">
+    <value>No SQL statement could be empty.</value>
+  </data>
+  <data name="DbSchema_ErrorStringHeader" xml:space="preserve">
+    <value>Data errors for database:</value>
+  </data>
+  <data name="DbSchema_ErrorStringTablesHeader" xml:space="preserve">
+    <value>Data errors for tables:</value>
+  </data>
+  <data name="DbSchema_TableListEmpty" xml:space="preserve">
+    <value>Database has no tables.</value>
+  </data>
+  <data name="DbTableSchema_ErrorStringFieldsHeader" xml:space="preserve">
+    <value>Data errors for table {0} fields:</value>
+  </data>
+  <data name="DbTableSchema_ErrorStringHeader" xml:space="preserve">
+    <value>Data errors for table {0}:</value>
+  </data>
+  <data name="DbTableSchema_FieldListEmpty" xml:space="preserve">
+    <value>Table has no fields.</value>
+  </data>
+  <data name="DbTableSchema_TableNameContainsEmptySpaces" xml:space="preserve">
+    <value>Table name cannot have blank spaces.</value>
+  </data>
+  <data name="DbTableSchema_TableNameNull" xml:space="preserve">
+    <value>Table name is not specified.</value>
+  </data>
+  <data name="FileNotFound" xml:space="preserve">
+    <value>File {0} not found.</value>
+  </data>
+  <data name="IndexValueOutOfRange" xml:space="preserve">
+    <value>Index value {0} was out of column list range.</value>
+  </data>
+  <data name="LightDataColumnCollection_CannotAddColumnToReadOnlyCollection" xml:space="preserve">
+    <value>Columns cannot be added to a readonly collection. (The collection is readonly when any row is added to the parent table.)</value>
+  </data>
+  <data name="LightDataColumnCollection_CannotRemoveColumnFromReadOnlyCollection" xml:space="preserve">
+    <value>Columns cannot be removed from a readonly collection. (The collection is readonly when any row is added to the parent table.)</value>
+  </data>
+  <data name="LightDataColumnCollection_ColumnAlreadyAdded" xml:space="preserve">
+    <value>The column already belongs to this collection, or to another collection.</value>
+  </data>
+  <data name="LightDataColumnCollection_ColumnNameAlreadyExists" xml:space="preserve">
+    <value>The collection already has a column with the specified name. (The comparison is not case-sensitive.)</value>
+  </data>
+  <data name="LightDataColumnCollection_NoColumnByIndex" xml:space="preserve">
+    <value>The collection does not have a column at the specified index.</value>
+  </data>
+  <data name="LightDataColumnCollection_NoColumnByName" xml:space="preserve">
+    <value>The collection does not have a column with the specified name.</value>
+  </data>
+  <data name="LightDataColumn_NameNotUnique" xml:space="preserve">
+    <value>Column names within a table should be unique.</value>
+  </data>
+  <data name="LightDataRowCollection_IndexOutOfRowRange" xml:space="preserve">
+    <value>Index value {0} was out of row list range.</value>
+  </data>
+  <data name="LightDataRowCollection_NoRowAtIndex" xml:space="preserve">
+    <value>The collection does not have a row at the specified index.</value>
+  </data>
+  <data name="LightDataRowCollection_RowBelongsToOtherTable" xml:space="preserve">
+    <value>The row was created for different table.</value>
+  </data>
+  <data name="LightDataRow_ArrayLengthInvalid" xml:space="preserve">
+    <value>Value array field count does not match table column count.</value>
+  </data>
+  <data name="LightDataRow_CannotCastTypeOnNull" xml:space="preserve">
+    <value>Failed to cast type on null value.</value>
+  </data>
+  <data name="LightDataRow_CannotEditReadOnlyColumn" xml:space="preserve">
+    <value>An edit tried to change the value of a read-only column.</value>
+  </data>
+  <data name="LightDataRow_ColumnDoesNotBelongToTable" xml:space="preserve">
+    <value>The column does not belong to this table.</value>
+  </data>
+  <data name="LightDataRow_ColumnNotFoundByName" xml:space="preserve">
+    <value>The column specified by columnName cannot be found.</value>
+  </data>
+  <data name="LightDataRow_ColumnValueFormatInvalid" xml:space="preserve">
+    <value>The column value is not in an appropriate format.</value>
+  </data>
+  <data name="LightDataRow_ColumnValueIsNotByteArray" xml:space="preserve">
+    <value>The column value is not a byte array.</value>
+  </data>
+  <data name="LightDataRow_ColumnValueIsNotEnumeration" xml:space="preserve">
+    <value>Type {0} is not an enumeration.</value>
+  </data>
+  <data name="LightDataRow_DataTypeMismatch" xml:space="preserve">
+    <value>The data types of the value and the column do not match.</value>
+  </data>
+  <data name="LightDataRow_EnumValueInvalid" xml:space="preserve">
+    <value>Enum {0} value for int code {1} is not defined.</value>
+  </data>
+  <data name="LightDataRow_ReaderFieldCountInvalid" xml:space="preserve">
+    <value>Reader field count does not match table column count.</value>
+  </data>
+  <data name="LightDataRow_ReferenceTypeWithoutCloneMethod" xml:space="preserve">
+    <value>The item data type {0} is invalid. Must have Clone method.</value>
+  </data>
+  <data name="LightDataRow_TableHasNoColumns" xml:space="preserve">
+    <value>Parent table has no columns.</value>
+  </data>
+  <data name="NoFieldsInString" xml:space="preserve">
+    <value>Source string contains no fields.</value>
+  </data>
+  <data name="NoFilesInFolder" xml:space="preserve">
+    <value>The XML file folder specified ({0}) contains no XML files.</value>
+  </data>
+  <data name="SqlAgentBase_CannotChangeDatabase" xml:space="preserve">
+    <value>Cannot change database while a transaction is in progress.</value>
+  </data>
+  <data name="SqlAgentBase_CannotCreateDatabase" xml:space="preserve">
+    <value>Cannot create database while transaction is in progress.</value>
+  </data>
+  <data name="SqlAgentBase_CannotStartTransaction" xml:space="preserve">
+    <value>Cannot start a new transaction while there is another transaction in progress.</value>
+  </data>
+  <data name="SqlAgentBase_CreatingCloneDatabase" xml:space="preserve">
+    <value>Creating new database...</value>
+  </data>
+  <data name="SqlAgentBase_CurrentDatabaseNull" xml:space="preserve">
+    <value>Database name is not set.</value>
+  </data>
+  <data name="SqlAgentBase_DatabaseCloneCanceled" xml:space="preserve">
+    <value>Clone has been canceled by the user.</value>
+  </data>
+  <data name="SqlAgentBase_DatabaseCloneCanceledAfterCreate" xml:space="preserve">
+    <value>Clone has been canceled by the user. WARNING. The target database has already been creted.</value>
+  </data>
+  <data name="SqlAgentBase_DatabaseCloneCompleted" xml:space="preserve">
+    <value>Clone completed succesfuly.</value>
+  </data>
+  <data name="SqlAgentBase_FetchingDatabaseSchema" xml:space="preserve">
+    <value>Fetching database schema...</value>
+  </data>
+  <data name="SqlAgentBase_GaugeSchemaEmpty" xml:space="preserve">
+    <value>Gauge database schema is empty.</value>
+  </data>
+  <data name="SqlAgentBase_NoTransactionToCommit" xml:space="preserve">
+    <value>No transaction to commit.</value>
+  </data>
+  <data name="SqlAgentBase_NoTransactionToRollback" xml:space="preserve">
+    <value>No transaction to rollback.</value>
+  </data>
+  <data name="SqlDictionary_DuplicateTokensInRepository" xml:space="preserve">
+    <value>Failed to load file {0} due to duplicate query token {1}.</value>
+  </data>
+  <data name="SqlDictionary_NullTokensInRepository" xml:space="preserve">
+    <value>Failed to load file {0} due to missing query tokens.</value>
+  </data>
+  <data name="SqlDictionary_RepositoryFilePrefixNotImplemented" xml:space="preserve">
+    <value>SQL agent does not implement repository file prefix.</value>
+  </data>
+  <data name="SqlDictionary_RepositoryFilesNotFound" xml:space="preserve">
+    <value>No repository files found or they contain no data for the SQL agent type {0}.</value>
+  </data>
+  <data name="SqlDictionary_RepositoryPathNotInitialized" xml:space="preserve">
+    <value>SQL repository path is not initialized.</value>
+  </data>
+  <data name="SqlDictionary_UnknownSqlQueryToken" xml:space="preserve">
+    <value>SQL query token {0} is unknown.</value>
+  </data>
+</root>

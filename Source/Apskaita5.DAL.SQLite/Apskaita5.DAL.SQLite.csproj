@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Remove="linux-x64\libsqlite3.so" />
+    <None Remove="osx-x64\libsqlite3.dylib" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="linux-x64\libsqlite3.so">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="osx-x64\libsqlite3.dylib">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="x64\e_sqlite3.dll">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="x86\e_sqlite3.dll">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.SQLite" Version="2.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Apskaita5.DAL.Common\Apskaita5.DAL.Common.csproj" />
+    <ProjectReference Include="..\Apskaita5.Utilities\Apskaita5.Utilities.csproj" />
+  </ItemGroup>
+
+</Project>
