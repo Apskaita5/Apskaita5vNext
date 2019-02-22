@@ -478,7 +478,7 @@ namespace Apskaita5.DAL.Common
         /// <exception cref="ArgumentNullException">A parameter name is not specified.</exception>
         public int IndexOf(string name)
         {
-            if (name == null || string.IsNullOrEmpty(name.Trim()))
+            if (name.IsNullOrWhiteSpace())
                 throw new ArgumentNullException(nameof(name));
 
             foreach (var column in _list)

@@ -4,7 +4,7 @@ using System.Data;
 using System.IO;
 using System.Linq;
 using System.Text;
-using Microsoft.Data.Sqlite;
+using System.Data.SQLite;
 using Apskaita5.DAL.Common;
 
 namespace Apskaita5.DAL.Sqlite
@@ -20,7 +20,7 @@ namespace Apskaita5.DAL.Sqlite
         private const string ParamPrefix = "$";
 
 
-        private SqliteTransaction _currentTransaction = null;
+        private SQLiteTransaction _currentTransaction = null;
 
 
 
@@ -118,7 +118,7 @@ namespace Apskaita5.DAL.Sqlite
         /// Starts a new transaction.
         /// </summary>
         /// <exception cref="InvalidOperationException">if transaction is already in progress</exception>
-        public override void TransactionBegin()
+        protected override void TransactionBegin()
         {
             base.TransactionBegin(); // check the validity of the operation
             var result = OpenConnection();
@@ -129,7 +129,7 @@ namespace Apskaita5.DAL.Sqlite
         /// Commits the current transaction.
         /// </summary>
         /// <exception cref="InvalidOperationException">if no transaction in progress</exception>
-        public override void TransactionCommit()
+        protected override void TransactionCommit()
         {
 
             base.TransactionCommit(); // check the validity of the operation
@@ -165,7 +165,7 @@ namespace Apskaita5.DAL.Sqlite
         /// Rollbacks the current transaction.
         /// </summary>
         /// <param name="ex">an exception that caused the rollback</param>
-        public override void TransactionRollback(Exception ex)
+        protected override void TransactionRollback(Exception ex)
         {
             
             base.TransactionRollback(ex); // check the validity of the operation
@@ -397,7 +397,7 @@ namespace Apskaita5.DAL.Sqlite
             {
                 try
                 {
-                    using (var command = new SqliteCommand())
+                    using (var command = new SQLiteCommand())
                     {
 
                         command.Connection = conn;
@@ -523,7 +523,7 @@ namespace Apskaita5.DAL.Sqlite
         /// <param name="dbSchema">the database schema to get the create database script for</param>
         public override string GetCreateDatabaseSql(DbSchema dbSchema)
         {
-            var script = dbSchema.Tables.Aggregate(new List<string>(),
+            var script = dbSchema.GetTablesInCreateOrder().Aggregate(new List<string>(),
                             (seed, table) =>
                             {
                                 seed.AddRange(table.GetCreateTableStatements());
@@ -695,7 +695,7 @@ namespace Apskaita5.DAL.Sqlite
             if (dbSchema.Tables.Count <1) 
                 throw new ArgumentException("Database schema should contain at least one table.", "dbSchema");
 
-            var script = dbSchema.Tables.Aggregate(new List<string>(),
+            var script = dbSchema.GetTablesInCreateOrder().Aggregate(new List<string>(),
                             (seed, table) =>
                             {
                                 seed.AddRange(table.GetCreateTableStatements());
@@ -765,7 +765,7 @@ namespace Apskaita5.DAL.Sqlite
             {
                 try
                 {
-                    using (var command = new SqliteCommand())
+                    using (var command = new SQLiteCommand())
                     {
 
                         command.Connection = conn;
@@ -864,20 +864,20 @@ namespace Apskaita5.DAL.Sqlite
 
 
 
-        private SqliteConnection OpenConnection()
+        private SQLiteConnection OpenConnection()
         {
 
             if (_currentDatabase == null || string.IsNullOrEmpty(_currentDatabase.Trim()))
                 throw new InvalidOperationException("Cannot open SQLite connection without a databse specified.");
 
-            SqliteConnection result;
+            SQLiteConnection result;
             if (_baseConnectionString.Trim().StartsWith(";"))
             {
-                result = new SqliteConnection("Data Source=" + _currentDatabase.Trim() + _baseConnectionString);
+                result = new SQLiteConnection("Data Source=" + _currentDatabase.Trim() + _baseConnectionString);
             }
             else
             {
-                result = new SqliteConnection("Data Source=" + _currentDatabase.Trim() + ";" + _baseConnectionString);
+                result = new SQLiteConnection("Data Source=" + _currentDatabase.Trim() + ";" + _baseConnectionString);
             }
             
             try
@@ -886,7 +886,7 @@ namespace Apskaita5.DAL.Sqlite
                 result.Open();
 
                 // foreign keys are disabled by default in SQLite
-                using (var command = new SqliteCommand())
+                using (var command = new SQLiteCommand())
                 {
                     command.Connection = result;
                     command.CommandText = "PRAGMA foreign_keys = ON;";
@@ -903,7 +903,7 @@ namespace Apskaita5.DAL.Sqlite
 
         }
 
-        private void HandleOpenConnectionException(SqliteConnection conn, Exception ex)
+        private void HandleOpenConnectionException(SQLiteConnection conn, Exception ex)
         {
 
             if (conn != null && conn.State != ConnectionState.Closed)
@@ -924,26 +924,27 @@ namespace Apskaita5.DAL.Sqlite
                 catch (Exception){}
             }
 
-            var sqliteEx = ex as SqliteException;
+            var sqliteEx = ex as SQLiteException;
             if (sqliteEx != null)
             {
 
-                if (sqliteEx.SqliteErrorCode == 23 ||
-                    sqliteEx.SqliteErrorCode == 26 ||
-                    sqliteEx.SqliteErrorCode == 14 ||
-                    sqliteEx.SqliteErrorCode == 11)
+                if (sqliteEx.ErrorCode == (int)SQLiteErrorCode.Auth ||
+                    sqliteEx.ErrorCode == (int)SQLiteErrorCode.Auth_User ||
+                    sqliteEx.ErrorCode == (int)SQLiteErrorCode.NotADb ||
+                    sqliteEx.ErrorCode == (int)SQLiteErrorCode.CantOpen ||
+                    sqliteEx.ErrorCode == (int)SQLiteErrorCode.Corrupt)
                 {
-                    throw new SqlException("Password is invalid or SQLite file corrupted.", sqliteEx.SqliteErrorCode, sqliteEx);
+                    throw new SqlException("Password is invalid or SQLite file corrupted.", sqliteEx.ErrorCode, sqliteEx);
                 }
 
-                if (sqliteEx.SqliteErrorCode == 12)
+                if (sqliteEx.ErrorCode == (int)SQLiteErrorCode.NotFound)
                 {
                     throw new SqlException(string.Format("SQLite database file {0} not found.", _currentDatabase),
-                        sqliteEx.SqliteErrorCode, sqliteEx);
+                        sqliteEx.ErrorCode, sqliteEx);
                 }
 
                 throw new SqlException(string.Format("SQLite returned error: {0}", sqliteEx.Message), 
-                    sqliteEx.SqliteErrorCode, sqliteEx);
+                    sqliteEx.ErrorCode, sqliteEx);
 
             }
 
@@ -988,7 +989,7 @@ namespace Apskaita5.DAL.Sqlite
         }
 
 
-        private void AddParams(SqliteCommand command, SqlParam[] parameters)
+        private void AddParams(SQLiteCommand command, SqlParam[] parameters)
         {
 
             command.Parameters.Clear();
@@ -1038,13 +1039,13 @@ namespace Apskaita5.DAL.Sqlite
 
         }
 
-        private T ExecuteCommandInt<T>(SqliteConnection connection, SqliteTransaction transaction,
+        private T ExecuteCommandInt<T>(SQLiteConnection connection, SQLiteTransaction transaction,
             string sqlStatement, SqlParam[] parameters)
         {
 
             try
             {
-                using (var command = new SqliteCommand())
+                using (var command = new SQLiteCommand())
                 {
 
                     if (transaction == null)

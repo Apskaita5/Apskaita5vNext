@@ -259,7 +259,7 @@ namespace Apskaita5.DAL.Common
             if (_dataType == DbDataType.Enum && !_enumValues.Contains(","))
                 GetOrCreateErrorList(nameof(EnumValues), result).Add(Properties.Resources.DbFieldSchema_EnumValuesTooShort);
 
-            if (_indexType != DbIndexType.None && _indexName.IsNullOrWhiteSpace())
+            if (_indexType != DbIndexType.None && _indexType != DbIndexType.Primary  && _indexName.IsNullOrWhiteSpace())
                 GetOrCreateErrorList(nameof(IndexName), result).Add(Properties.Resources.DbFieldSchema_IndexNameNull);
 
             if (_indexType == DbIndexType.ForeignKey && _refTable.IsNullOrWhiteSpace())

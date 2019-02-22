@@ -35,22 +35,13 @@ namespace Apskaita5.DAL.Common
         /// </summary>
         public object Value {
             get { return _value; }
-            set { _value = value; }
+            set { SetValue(value, null); }
         }
 
         /// <summary>
-        /// Gets or sets the parameter value type. 
-        /// Only required when the <see cref="Value">Value</see> property is set to null.
+        /// Gets the parameter value type.
         /// </summary>
-        public Type ValueType {
-            get { return _valueType; }
-            set
-            {
-                if (value==null)
-                    throw new ArgumentNullException(nameof(value));
-                _valueType = value;
-            }
-        }
+        public Type ValueType  => _valueType;
         
         /// <summary>
         /// Gets or sets a value indicating whether modify SQL query by replacing parameter name with value
@@ -73,17 +64,8 @@ namespace Apskaita5.DAL.Common
             if (name.IsNullOrWhiteSpace())
                 throw new ArgumentNullException(nameof(name));
 
-            Name = name;
-            Value = value;
-
-            if (value == null)
-            {
-                ValueType = typeof (string);
-            }
-            else
-            {
-                ValueType = value.GetType();
-            }
+            _name = name;
+            SetValue(value, null);
 
         }
 
@@ -102,11 +84,113 @@ namespace Apskaita5.DAL.Common
             if (valueType == null)
                 throw new ArgumentNullException(nameof(valueType));
 
-            Name = name;
-            Value = value;
-            ValueType = valueType;
+            _name = name;
+            SetValue(value, valueType);
+
+        }
+
+        private void SetValue(object value, Type valueType)
+        {   
+            
+            if (value != null)
+            {
+                if (value.GetType() == typeof(Nullable<byte>))
+                {
+                    var c = (Nullable<byte>)value;
+                    _valueType = typeof(byte);
+                    if (c.HasValue) _value = c.Value;
+                    else _value = null;
+                }
+                else if (value.GetType() == typeof(Nullable<sbyte>))
+                {
+                    var c = (Nullable<sbyte>)value;
+                    _valueType = typeof(sbyte);
+                    if (c.HasValue) _value = c.Value;
+                    else _value = null;
+                }
+                else if (value.GetType() == typeof(Nullable<Int16>))
+                {
+                    var c = (Nullable<Int16>)value;
+                    _valueType = typeof(Int16);
+                    if (c.HasValue) _value = c.Value;
+                    else _value = null;
+                }
+                else if (value.GetType() == typeof(Nullable<Int32>))
+                {
+                    var c = (Nullable<Int32>)value;
+                    _valueType = typeof(Int32);
+                    if (c.HasValue) _value = c.Value;
+                    else _value = null;
+                }
+                else if (value.GetType() == typeof(Nullable<Int64>))
+                {
+                    var c = (Nullable<Int64>)value;
+                    _valueType = typeof(Int64);
+                    if (c.HasValue) _value = c.Value;
+                    else _value = null;
+                }
+                else if (value.GetType() == typeof(Nullable<char>))
+                {
+                    var c = (Nullable<char>)value;
+                    _valueType = typeof(char);
+                    if (c.HasValue) _value = c.Value;
+                    else _value = null;
+                }
+                else if (value.GetType() == typeof(Nullable<DateTime>))
+                {
+                    var c = (Nullable<DateTime>)value;
+                    _valueType = typeof(DateTime);
+                    if (c.HasValue) _value = c.Value;
+                    else _value = null;
+                }
+                else if (value.GetType() == typeof(Nullable<bool>))
+                {
+                    var c = (Nullable<bool>)value;
+                    _valueType = typeof(bool);
+                    if (c.HasValue) _value = c.Value;
+                    else _value = null;
+                }
+                else if (value.GetType() == typeof(Nullable<double>))
+                {
+                    var c = (Nullable<double>)value;
+                    _valueType = typeof(double);
+                    if (c.HasValue) _value = c.Value;
+                    else _value = null;
+                }
+                else if (value.GetType() == typeof(Nullable<float>))
+                {
+                    var c = (Nullable<float>)value;
+                    _valueType = typeof(float);
+                    if (c.HasValue) _value = c.Value;
+                    else _value = null;
+                }
+                else if (value.GetType() == typeof(Nullable<decimal>))
+                {
+                    var c = (Nullable<decimal>)value;
+                    _valueType = typeof(decimal);
+                    if (c.HasValue) _value = c.Value;
+                    else _value = null;
+                }
+                else
+                {
+                    _value = value;
+                    _valueType = value.GetType();
+                }
+
+            }
+            else if (valueType != null)
+            {
+                _value = null;
+                _valueType = valueType;
+            }
+            else
+            {
+                _value = null;
+                _valueType = typeof(string);
+            }
 
         }
 
     }
+
 }

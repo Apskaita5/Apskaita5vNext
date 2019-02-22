@@ -439,6 +439,15 @@ namespace Apskaita5.DAL.Common.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Enum {0} value for string code {1} is not defined..
+        /// </summary>
+        internal static string LightDataRow_EnumStringValueInvalid {
+            get {
+                return ResourceManager.GetString("LightDataRow_EnumStringValueInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Enum {0} value for int code {1} is not defined..
         /// </summary>
         internal static string LightDataRow_EnumValueInvalid {

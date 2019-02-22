@@ -11,6 +11,8 @@ namespace Apskaita5.DAL.Common
     public sealed class DbTableSchema
     {
 
+        private bool _IsProcessed = false;
+
         private string _name = string.Empty;
         private string _description = string.Empty;
         private string _charsetName = string.Empty;
@@ -175,6 +177,42 @@ namespace Apskaita5.DAL.Common
             }
 
         }
+
+
+        internal void MarkAsNotProcessed()
+        {
+            _IsProcessed = false;
+        }
+
+        internal List<DbTableSchema> GetListOrderedByForeignKey(List<DbTableSchema> fullList)
+        {
+
+            var result = new List<DbTableSchema>();
+
+            if (_IsProcessed) return result;
+
+            _IsProcessed = true;
+
+            foreach (var col in _fields)
+            {
+                if (col.IndexType == DbIndexType.ForeignKey)
+                {
+                    foreach (var tbl in fullList)
+                    {
+                        if (tbl._name.Trim().ToLower() == col.RefTable.Trim().ToLower())
+                        {
+                            result.AddRange(tbl.GetListOrderedByForeignKey(fullList));
+                            break;
+                        }
+                    }
+                }
+            }
+
+            result.Add(this);
+
+            return result;
+
+        } 
 
     }
 }

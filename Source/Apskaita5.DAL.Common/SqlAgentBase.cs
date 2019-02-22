@@ -149,12 +149,255 @@ namespace Apskaita5.DAL.Common
         public abstract void TestConnection();
 
         /// <summary>
-        /// Starts a new transaction.
+        /// Executes given <paramref name="method">method</paramref> within an SQL transaction.
+        /// Invokes Commit if the method execution is succesfull and the transaction was initiated
+        /// by the invoker.
         /// </summary>
-        /// <exception cref="InvalidOperationException">if transaction is already in progress</exception>
-        public virtual void TransactionBegin()
+        /// <param name="method">a method to execute within an SQL transaction</param>
+        public void ExecuteInTransaction(Action method)
         {
-            if (this.IsTransactionInProgress) 
+
+            bool isOwner = false;
+
+            if (IsTransactionInProgress)
+            {
+
+                if (method == null) TransactionRollback(new ArgumentNullException(nameof(method)));
+
+            }
+            else
+            {
+
+                if (method == null) throw new ArgumentNullException(nameof(method));
+
+                TransactionBegin();
+                isOwner = true;
+
+            }
+
+            try
+            {
+                method();
+                if (isOwner) TransactionCommit();
+            }
+            catch (Exception ex)
+            {
+                if (!IsTransactionInProgress) throw;
+                TransactionRollback(ex);
+            }            
+
+        }
+
+        /// <summary>
+        /// Executes given <paramref name="method">method</paramref> within an SQL transaction.
+        /// Invokes Commit if the method execution is succesfull and the transaction was initiated
+        /// by the invoker.
+        /// </summary>
+        /// <param name="method">a method to execute within an SQL transaction</param>
+        public void ExecuteInTransaction(Action<SqlAgentBase> method)
+        {
+
+            bool isOwner = false;
+
+            if (IsTransactionInProgress)
+            {    
+                if (method == null) TransactionRollback(new ArgumentNullException(nameof(method)));
+            }
+            else
+            {         
+                if (method == null) throw new ArgumentNullException(nameof(method));
+                TransactionBegin();
+                isOwner = true;
+            }
+
+            try
+            {
+                method(this);
+                if (isOwner) TransactionCommit();
+            }
+            catch (Exception ex)
+            {
+                if (!IsTransactionInProgress) throw;
+                TransactionRollback(ex);
+            }
+
+        }
+
+        /// <summary>
+        /// Executes given <paramref name="method">method</paramref> within an SQL transaction.
+        /// Invokes Commit if the method execution is succesfull and the transaction was initiated
+        /// by the invoker.
+        /// </summary>
+        /// <param name="method">a method to execute within an SQL transaction</param>
+        /// <param name="parameter">a custom parameter to pass to the method</param>
+        public void ExecuteInTransaction<T>(Action<SqlAgentBase, T> method, T parameter)
+        {
+
+            bool isOwner = false;
+
+            if (IsTransactionInProgress)
+            {
+                if (method == null) TransactionRollback(new ArgumentNullException(nameof(method)));
+            }
+            else
+            {
+                if (method == null) throw new ArgumentNullException(nameof(method));
+                TransactionBegin();
+                isOwner = true;
+            }
+
+            try
+            {
+                method(this, parameter);
+                if (isOwner) TransactionCommit();
+            }
+            catch (Exception ex)
+            {
+                if (!IsTransactionInProgress) throw;
+                TransactionRollback(ex);
+            }
+
+        }
+
+        /// <summary>
+        /// Executes given <paramref name="method">method</paramref> within an SQL transaction
+        /// and returns the result of the method.
+        /// Invokes Commit if the method execution is succesfull and the transaction was initiated
+        /// by the invoker.
+        /// </summary>
+        /// <param name="method">a method to execute within an SQL transaction</param>
+        public TResult ExecuteInTransaction<TResult>(Func<TResult> method)
+        {
+
+            bool isOwner = false;
+
+            if (IsTransactionInProgress)
+            {
+
+                if (method == null) TransactionRollback(new ArgumentNullException(nameof(method)));
+                return default(TResult);
+
+            }
+            else
+            {
+
+                if (method == null) throw new ArgumentNullException(nameof(method));
+
+                TransactionBegin();
+                isOwner = true;
+
+            }
+
+            try
+            {
+                var result = method();
+                if (isOwner) TransactionCommit();
+                return result;
+            }
+            catch (Exception ex)
+            {
+                if (!IsTransactionInProgress) throw;
+                TransactionRollback(ex);
+                return default(TResult);
+            }
+
+        }
+
+        /// <summary>
+        /// Executes given <paramref name="method">method</paramref> within an SQL transaction
+        /// and returns the result of the method.
+        /// Invokes Commit if the method execution is succesfull and the transaction was initiated
+        /// by the invoker.
+        /// </summary>
+        /// <param name="method">a method to execute within an SQL transaction</param>
+        public TResult ExecuteInTransaction<TResult>(Func<SqlAgentBase, TResult> method)
+        {
+
+            bool isOwner = false;
+
+            if (IsTransactionInProgress)
+            {
+
+                if (method == null) TransactionRollback(new ArgumentNullException(nameof(method)));
+                return default(TResult);
+
+            }
+            else
+            {
+
+                if (method == null) throw new ArgumentNullException(nameof(method));
+
+                TransactionBegin();
+                isOwner = true;
+
+            }
+
+            try
+            {
+                var result = method(this);
+                if (isOwner) TransactionCommit();
+                return result;
+            }
+            catch (Exception ex)
+            {
+                if (!IsTransactionInProgress) throw;
+                TransactionRollback(ex);
+                return default(TResult);
+            }
+
+        }
+
+        /// <summary>
+        /// Executes given <paramref name="method">method</paramref> within an SQL transaction
+        /// and returns the result of the method.
+        /// Invokes Commit if the method execution is succesfull and the transaction was initiated
+        /// by the invoker.
+        /// </summary>
+        /// <param name="method">a method to execute within an SQL transaction</param>
+        /// <param name="parameter">a custom parameter to pass to the method</param>
+        public TResult ExecuteInTransaction<T, TResult>(Func<SqlAgentBase, T, TResult> method, T parameter)
+        {
+
+            bool isOwner = false;
+
+            if (IsTransactionInProgress)
+            {
+
+                if (method == null) TransactionRollback(new ArgumentNullException(nameof(method)));
+                return default(TResult);
+
+            }
+            else
+            {
+
+                if (method == null) throw new ArgumentNullException(nameof(method));
+
+                TransactionBegin();
+                isOwner = true;
+
+            }
+
+            try
+            {
+                var result = method(this, parameter);
+                if (isOwner) TransactionCommit();
+                return result;
+            }
+            catch (Exception ex)
+            {
+                if (!IsTransactionInProgress) throw;
+                TransactionRollback(ex);
+                return default(TResult);
+            }
+
+        }
+
+        /// <summary>
+        /// Begins a transaction.
+        /// </summary>
+        protected virtual void TransactionBegin()
+        {
+            if (this.IsTransactionInProgress)
                 throw new InvalidOperationException(Properties.Resources.SqlAgentBase_CannotStartTransaction);
         }
 
@@ -162,7 +405,7 @@ namespace Apskaita5.DAL.Common
         /// Commits the current transaction.
         /// </summary>
         /// <exception cref="InvalidOperationException">if no transaction in progress</exception>
-        public virtual void TransactionCommit()
+        protected virtual void TransactionCommit()
         {
             if (!this.IsTransactionInProgress)
                 throw new InvalidOperationException(Properties.Resources.SqlAgentBase_NoTransactionToCommit);
@@ -172,7 +415,7 @@ namespace Apskaita5.DAL.Common
         /// Rollbacks the current transaction.
         /// </summary>
         /// <param name="ex">an exception that caused the rollback</param>
-        public virtual void TransactionRollback(Exception ex)
+        protected virtual void TransactionRollback(Exception ex)
         {
             if (!this.IsTransactionInProgress) 
                 throw new InvalidOperationException(Properties.Resources.SqlAgentBase_NoTransactionToRollback);

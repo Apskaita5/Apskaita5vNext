@@ -219,6 +219,20 @@ namespace Apskaita5.DAL.Common
 
 
         /// <summary>
+        /// Gets a list of DbTableSchema ordered by foreign key index 
+        /// (so that the referenced tables are created before the tables that reference them).
+        /// </summary>
+        /// <returns>an ordered list of DbTableSchema</returns>
+        public List<DbTableSchema> GetTablesInCreateOrder()
+        {
+            foreach (var tbl in _tables) tbl.MarkAsNotProcessed();
+            var result = new List<DbTableSchema>();
+            foreach (var tbl in _tables) result.AddRange(tbl.GetListOrderedByForeignKey(_tables));
+            return result;
+        }
+
+
+        /// <summary>
         /// Gets the list of all the data errors for the DbSchema instance as a per property dictionary 
         /// (not including it's child tables errors).
         /// </summary>

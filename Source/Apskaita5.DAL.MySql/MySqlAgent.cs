@@ -164,7 +164,7 @@ namespace Apskaita5.DAL.MySql
         /// Starts a new transaction.
         /// </summary>
         /// <exception cref="InvalidOperationException">if transaction is already in progress</exception>
-        public override void TransactionBegin()
+        protected override void TransactionBegin()
         {
             base.TransactionBegin(); // check the validity of the operation
             var result = OpenConnection();
@@ -175,7 +175,7 @@ namespace Apskaita5.DAL.MySql
         /// Commits the current transaction.
         /// </summary>
         /// <exception cref="InvalidOperationException">if no transaction in progress</exception>
-        public override void TransactionCommit()
+        protected override void TransactionCommit()
         {
 
             base.TransactionCommit(); // check the validity of the operation
@@ -193,7 +193,7 @@ namespace Apskaita5.DAL.MySql
                 }
                 catch (Exception e)
                 {
-                    throw new Exception(string.Format("Critical SQL transaction error, failed to rollback the transaction.{0}{1}{2}{3}",
+                    throw new Exception(string.Format("Critical SQL transaction error, failed to rollback the transaction.{0}Commit exception: {1}{2}Rollback exception: {3}",
                         Environment.NewLine, ex.Message, Environment.NewLine, e.Message), ex);
                 }
 
@@ -210,7 +210,7 @@ namespace Apskaita5.DAL.MySql
         /// Rollbacks the current transaction.
         /// </summary>
         /// <param name="ex">an exception that caused the rollback</param>
-        public override void TransactionRollback(Exception ex)
+        protected override void TransactionRollback(Exception ex)
         {
             
             base.TransactionRollback(ex); // check the validity of the operation
@@ -228,7 +228,7 @@ namespace Apskaita5.DAL.MySql
                 }
                 else
                 {
-                    throw new Exception(string.Format("Critical SQL transaction error, failed to rollback the transaction.{0}{1}{2}{3}",
+                    throw new Exception(string.Format("Critical SQL transaction error, failed to rollback the transaction.{0}Initial exception: {1}{2}Rollback exception: {3}",
                         Environment.NewLine, ex.Message, Environment.NewLine, e.Message), ex);   
                 }
             }
@@ -600,7 +600,7 @@ namespace Apskaita5.DAL.MySql
                     "USE DoomyDatabaseName;"
                 };
 
-            foreach (var table in dbSchema.Tables)
+            foreach (var table in dbSchema.GetTablesInCreateOrder())
             {
                 createScript.AddRange(table.GetCreateTableStatements("DoomyDatabaseName", 
                     DefaultEngine, DefaultCharset));
@@ -719,7 +719,7 @@ namespace Apskaita5.DAL.MySql
                     string.Format("USE {0};", databaseName)
                 };
 
-            foreach (var table in dbSchema.Tables)
+            foreach (var table in dbSchema.GetTablesInCreateOrder())
             {
                 createScript.AddRange(table.GetCreateTableStatements(databaseName, 
                     applicableEngine, applicableCharset));

@@ -352,7 +352,7 @@ namespace Apskaita5.DAL.Common
         /// <summary>
         /// Gets a value that indicates whether the named column contains a null or a DbNull value.
         /// </summary>
-        /// <param name="columnName">The name of the column.</param>
+        /// <param name="columnName">A name of the column.</param>
         /// <exception cref="ArgumentException">The column specified by columnName cannot be found.</exception>
         public bool IsNull(string columnName)
         {
@@ -365,26 +365,51 @@ namespace Apskaita5.DAL.Common
         /// <summary>
         /// Gets a value that indicates whether the specified column contains a DbNull value.
         /// </summary>
-        /// <param name="i">The zero-based index of the column.</param>
+        /// <param name="column">A LightDataColumn.</param>
         /// <exception cref="IndexOutOfRangeException">The index argument is out of range.</exception>
-        public bool IsDBNull(int i)
+        public bool IsDBNull(LightDataColumn column)
         {
-            CheckIndex(i);
-            return (_data[i] != null && _data[i] == DBNull.Value);
+            if (column == null) throw new ArgumentNullException(nameof(column));
+            if (!Object.ReferenceEquals(_table, column.Table))
+                throw new ArgumentException(Properties.Resources.LightDataRow_ColumnDoesNotBelongToTable);
+            return (_data[column.Ordinal] != null && _data[column.Ordinal] == DBNull.Value);
         }
 
-#region Type Converters
+        /// <summary>
+        /// Gets a value that indicates whether the specified column contains a DbNull value.
+        /// </summary>
+        /// <param name="columnIndex">The zero-based index of the column.</param>
+        /// <exception cref="IndexOutOfRangeException">The index argument is out of range.</exception>
+        public bool IsDBNull(int columnIndex)
+        {
+            CheckIndex(columnIndex);
+            return (_data[columnIndex] != null && _data[columnIndex] == DBNull.Value);
+        }
 
         /// <summary>
-        /// Gets the data stored in the column specified by index and converted to boolean.
+        /// Gets a value that indicates whether the specified column contains a DbNull value.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <exception cref="IndexOutOfRangeException">The index argument is out of range.</exception>
+        public bool IsDBNull(string columnName)
+        {
+            var column = _table.Columns[columnName];
+            if (column == null)
+                throw new ArgumentException(Properties.Resources.LightDataRow_ColumnNotFoundByName);
+            return (_data[column.Ordinal] != null && _data[column.Ordinal] == DBNull.Value);
+        }
+
+        #region Type Converters
+
+        /// <summary>
+        /// Gets the data stored in the column specified as boolean.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
-        /// <remarks>Does "!= 0" conversion if the underlying value type is numeric.
-        /// Tries to parse value as "true" or "false" if the underlying value type is string.
-        /// Tries to parse Int64 value using InvariantCulture and to do "!= 0" conversion 
-        /// if the underlying value type is string and the value is neither "true" nor "false".
-        /// Tries to convert to string using UTF8 encoding and parse the string 
-        /// if the underlying value type is byte array.</remarks>
+        /// <remarks>If the underlying value type is numeric, returns "!= 0".
+        /// If the underlying value type is string, tries to parse value as "true" or "false"
+        /// or to parse Int64 value using InvariantCulture and do "!= 0" conversion. 
+        /// if the underlying value type is byte[], tries to convert to string using UTF8 encoding 
+        /// and parse the string.</remarks>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <exception cref="InvalidCastException">Failed to cast type on the null column value.</exception>
         /// <exception cref="FormatException">The column value is not in an appropriate format.</exception>
@@ -413,28 +438,15 @@ namespace Apskaita5.DAL.Common
             if (raw is ulong)
                 return (ulong)raw != 0;
 
-            if (raw is string)
+            if (TryReadString(raw, out string stringValue) && !stringValue.IsNullOrWhiteSpace())
             {
-                if (((string)raw).Trim().ToUpperInvariant() == "TRUE") 
+                if (stringValue.Trim().ToUpperInvariant() == "TRUE")
                     return true;
-                if (((string)raw).Trim().ToUpperInvariant() == "FALSE")
+                if (stringValue.Trim().ToUpperInvariant() == "FALSE")
                     return false;
 
-                if (long.TryParse((string)raw, NumberStyles.Any, CultureInfo.InvariantCulture, out long intValue))
+                if (long.TryParse(stringValue, NumberStyles.Any, CultureInfo.InvariantCulture, out long intValue))
                     return (intValue != 0);
-            }
-            if (raw is byte[])
-            {
-                if (TryReadString((byte[])raw, out string stringValue))
-                {
-                    if (stringValue.Trim().ToUpperInvariant() == "TRUE")
-                        return true;
-                    if (stringValue.Trim().ToUpperInvariant() == "FALSE")
-                        return false;
-
-                    if (long.TryParse(stringValue, NumberStyles.Any, CultureInfo.InvariantCulture, out long intValue))
-                        return (intValue != 0);
-                }
             }
 
             throw new FormatException(Properties.Resources.LightDataRow_ColumnValueFormatInvalid);
@@ -442,11 +454,11 @@ namespace Apskaita5.DAL.Common
         }
 
         /// <summary>
-        /// Gets the data stored in the column specified by index and converted to byte.
+        /// Gets the data stored in the column specified as byte.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
         /// <remarks>Does checked conversions if the underlying value type is sbyte. 
-        /// (narrowing conversion from int types does not make sense for  byte)
+        /// (narrowing conversion from int types does not make sense for byte)
         /// Tries to parse value using InvariantCulture if the underlying value type is string.
         /// Tries to convert to string using UTF8 encoding and parse value using InvariantCulture 
         /// if the underlying value type is byte array.</remarks>
@@ -463,18 +475,10 @@ namespace Apskaita5.DAL.Common
             if (raw is sbyte)
                 return checked((byte)(sbyte)raw);
 
-            if (raw is string)
+            if (TryReadString(raw, out string stringValue) && !stringValue.IsNullOrWhiteSpace())
             {
                 if (byte.TryParse((string)raw, NumberStyles.Any, CultureInfo.InvariantCulture, out byte byteValue))
                     return byteValue;
-            }
-            if (raw is byte[])
-            {
-                if (TryReadString((byte[])raw, out string stringValue))
-                {
-                    if (byte.TryParse(stringValue, NumberStyles.Any, CultureInfo.InvariantCulture, out byte byteValue))
-                        return byteValue;
-                }
             }
 
             throw new FormatException(Properties.Resources.LightDataRow_ColumnValueFormatInvalid);
@@ -482,7 +486,7 @@ namespace Apskaita5.DAL.Common
         }
 
         /// <summary>
-        /// Gets the data stored in the column specified by index and converted to sbyte.
+        /// Gets the data stored in the column specified as sbyte.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
         /// <remarks>Only returns a sbyte value if the underlying value type is sbyte.</remarks>
@@ -515,7 +519,7 @@ namespace Apskaita5.DAL.Common
         }
 
         /// <summary>
-        /// Gets the data stored in the column specified by index and converted to char.
+        /// Gets the data stored in the column specified as char.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
         /// <remarks>Returns the first char (after Trim) if the underlying value type is string.
@@ -532,20 +536,11 @@ namespace Apskaita5.DAL.Common
             if (raw is char)
                 return (char)raw;
 
-            if (raw is string)
+            if (TryReadString(raw, out string stringValue) && stringValue != null)
             {
-                var chars = ((string)raw).Trim().ToCharArray();
-                if (chars.Length > 0) return chars[0];
-                throw new InvalidCastException(Properties.Resources.LightDataRow_CannotCastTypeOnNull);
-            }
-            if (raw is byte[])
-            {
-                if (TryReadString((byte[])raw, out string stringValue))
-                {
-                    var chars = stringValue.Trim().ToCharArray();
-                    if (chars.Length > 0) return chars[0];
-                    throw new InvalidCastException(Properties.Resources.LightDataRow_CannotCastTypeOnNull);
-                }
+                if (stringValue.Trim().Length > 0) return stringValue.Trim().ToCharArray()[0];
+                else if (stringValue.Length > 0) return stringValue.ToCharArray()[0];
+                else throw new InvalidCastException(Properties.Resources.LightDataRow_CannotCastTypeOnNull);
             }
 
             throw new FormatException(Properties.Resources.LightDataRow_ColumnValueFormatInvalid);
@@ -566,7 +561,7 @@ namespace Apskaita5.DAL.Common
         }
 
         /// <summary>
-        /// Gets the data stored in the column specified by index and converted to Guid.
+        /// Gets the data stored in the column specified as Guid.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
         /// <remarks>Returns Guid.Empty if the underlying value is null or empty string or empty byte array.
@@ -609,7 +604,7 @@ namespace Apskaita5.DAL.Common
         }
 
         /// <summary>
-        /// Gets the data stored in the column specified by index and converted to Int16.
+        /// Gets the data stored in the column specified as Int16.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
         /// <remarks>Does checked conversions if the underlying value type is numeric or decimal.
@@ -644,18 +639,10 @@ namespace Apskaita5.DAL.Common
             if (raw is decimal)
                 return (short)(decimal)raw;
 
-            if (raw is string)
+            if (TryReadString(raw, out string stringValue) && !stringValue.IsNullOrWhiteSpace())
             {
-                if (long.TryParse((string)raw, NumberStyles.Any, CultureInfo.InvariantCulture, out long intValue))
+                if (long.TryParse(stringValue, NumberStyles.Any, CultureInfo.InvariantCulture, out long intValue))
                     return checked((short)intValue);
-            }
-            if (raw is byte[])
-            {
-                if (TryReadString((byte[])raw, out string stringValue))
-                {
-                    if (long.TryParse(stringValue, NumberStyles.Any, CultureInfo.InvariantCulture, out long intValue))
-                        return checked((short)intValue);
-                }
             }
 
             throw new FormatException(Properties.Resources.LightDataRow_ColumnValueFormatInvalid);
@@ -663,7 +650,7 @@ namespace Apskaita5.DAL.Common
         }
 
         /// <summary>
-        /// Gets the data stored in the column specified by index and converted to Int32.
+        /// Gets the data stored in the column specified as Int32.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
         /// <remarks>Does checked conversions if the underlying value type is numeric or decimal.
@@ -698,18 +685,10 @@ namespace Apskaita5.DAL.Common
             if (raw is decimal)
                 return (int)(decimal)raw;
 
-            if (raw is string)
+            if (TryReadString(raw, out string stringValue) && !stringValue.IsNullOrWhiteSpace())
             {
-                if (long.TryParse((string)raw, NumberStyles.Any, CultureInfo.InvariantCulture, out long intValue))
+                if (long.TryParse(stringValue, NumberStyles.Any, CultureInfo.InvariantCulture, out long intValue))
                     return checked((int)intValue);
-            }
-            if (raw is byte[])
-            {
-                if (TryReadString((byte[])raw, out string stringValue))
-                {
-                    if (long.TryParse(stringValue, NumberStyles.Any, CultureInfo.InvariantCulture, out long intValue))
-                        return checked((int)intValue);
-                }
             }
 
             throw new FormatException(Properties.Resources.LightDataRow_ColumnValueFormatInvalid);
@@ -717,7 +696,7 @@ namespace Apskaita5.DAL.Common
         }
 
         /// <summary>
-        /// Gets the data stored in the column specified by index and converted to Int16.
+        /// Gets the data stored in the column specified as Int64.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
         /// <remarks>Does checked conversions if the underlying value type is numeric or decimal.
@@ -752,18 +731,10 @@ namespace Apskaita5.DAL.Common
             if (raw is decimal)
                 return (long)(decimal)raw;
 
-            if (raw is string)
+            if (TryReadString(raw, out string stringValue) && !stringValue.IsNullOrWhiteSpace())
             {
-                if (long.TryParse((string)raw, NumberStyles.Any, CultureInfo.InvariantCulture, out long intValue))
+                if (long.TryParse(stringValue, NumberStyles.Any, CultureInfo.InvariantCulture, out long intValue))
                     return intValue;
-            }
-            if (raw is byte[])
-            {
-                if (TryReadString((byte[])raw, out string stringValue))
-                {
-                    if (long.TryParse(stringValue, NumberStyles.Any, CultureInfo.InvariantCulture, out long intValue))
-                        return intValue;
-                }
             }
 
             throw new FormatException(Properties.Resources.LightDataRow_ColumnValueFormatInvalid);
@@ -771,7 +742,7 @@ namespace Apskaita5.DAL.Common
         }
 
         /// <summary>
-        /// Gets the data stored in the column specified by index and converted to float.
+        /// Gets the data stored in the column specified as float.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
         /// <remarks>Tries to parse value using InvariantCulture if the underlying value type is string.
@@ -787,25 +758,17 @@ namespace Apskaita5.DAL.Common
             if (raw is float)
                 return (float) raw;
 
-            if (raw is string)
+            if (TryReadString(raw, out string stringValue) && !stringValue.IsNullOrWhiteSpace())
             {
-                if (float.TryParse((string)raw, NumberStyles.Any, CultureInfo.InvariantCulture, out float floatValue))
-                    return floatValue; ;
-            }
-            if (raw is byte[])
-            {
-                if (TryReadString((byte[])raw, out string stringValue))
-                {
-                    if (float.TryParse(stringValue, NumberStyles.Any, CultureInfo.InvariantCulture, out float floatValue))
-                        return floatValue;
-                }
+                if (float.TryParse(stringValue, NumberStyles.Any, CultureInfo.InvariantCulture, out float floatValue))
+                    return floatValue;
             }
 
             throw new FormatException(Properties.Resources.LightDataRow_ColumnValueFormatInvalid);
         }
 
         /// <summary>
-        /// Gets the data stored in the column specified by index and converted to double.
+        /// Gets the data stored in the column specified as double.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
         /// <remarks>Casts to double if the underlying value type is float.
@@ -825,18 +788,10 @@ namespace Apskaita5.DAL.Common
             if (raw is float)
                 return (float)raw;
 
-            if (raw is string)
+            if (TryReadString(raw, out string stringValue) && !stringValue.IsNullOrWhiteSpace())
             {
-                if (double.TryParse((string)raw, NumberStyles.Any, CultureInfo.InvariantCulture, out double doubleValue))
-                    return doubleValue; ;
-            }
-            if (raw is byte[])
-            {
-                if (TryReadString((byte[])raw, out string stringValue))
-                {
-                    if (double.TryParse(stringValue, NumberStyles.Any, CultureInfo.InvariantCulture, out double doubleValue))
-                        return doubleValue;
-                }
+                if (double.TryParse(stringValue, NumberStyles.Any, CultureInfo.InvariantCulture, out double doubleValue))
+                    return doubleValue;
             }
 
             throw new FormatException(Properties.Resources.LightDataRow_ColumnValueFormatInvalid);
@@ -844,7 +799,7 @@ namespace Apskaita5.DAL.Common
         }
 
         /// <summary>
-        /// Gets the data stored in the column specified by index and converted to string.
+        /// Gets the data stored in the column specified as string.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
         /// <remarks>Returns null if the underlying value is null.
@@ -874,7 +829,7 @@ namespace Apskaita5.DAL.Common
         }
 
         /// <summary>
-        /// Gets the data stored in the column specified by index and converted to decimal.
+        /// Gets the data stored in the column specified as decimal.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
         /// <remarks>Tries to parse value using InvariantCulture if the underlying value type is string.
@@ -890,19 +845,11 @@ namespace Apskaita5.DAL.Common
 
             if (raw is decimal)
                 return (decimal)raw;
-            
-            if (raw is string)
+
+            if (TryReadString(raw, out string stringValue) && !stringValue.IsNullOrWhiteSpace())
             {
-                if (decimal.TryParse((string)raw, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal decimalValue))
-                    return decimalValue; ;
-            }
-            if (raw is byte[])
-            {
-                if (TryReadString((byte[])raw, out string stringValue))
-                {
-                    if (decimal.TryParse(stringValue, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal decimalValue))
-                        return decimalValue;
-                }
+                if (decimal.TryParse(stringValue, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal decimalValue))
+                    return decimalValue;
             }
 
             throw new FormatException(Properties.Resources.LightDataRow_ColumnValueFormatInvalid);
@@ -910,7 +857,7 @@ namespace Apskaita5.DAL.Common
         }
 
         /// <summary>
-        /// Gets the data stored in the column specified by index and converted to DateTime.
+        /// Gets the data stored in the column specified as DateTime.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
         /// <remarks>Tries to parse the value using either formats specified by 
@@ -930,18 +877,10 @@ namespace Apskaita5.DAL.Common
             if (raw is DateTime)
                 return (DateTime)raw;
 
-            if (raw is string)
-                {
-                if (TryParseDateTime((string)raw, out DateTime dateTimeValue))
+            if (TryReadString(raw, out string stringValue) && !stringValue.IsNullOrWhiteSpace())
+            {
+                if (TryParseDateTime(stringValue, out DateTime dateTimeValue))
                     return dateTimeValue;
-            }
-            if (raw is byte[])
-                {
-                if (TryReadString((byte[])raw, out string stringValue))
-                {
-                    if (TryParseDateTime(stringValue, out DateTime dateTimeValue))
-                        return dateTimeValue;
-                }
             }
 
             return (DateTime)raw;
@@ -949,7 +888,7 @@ namespace Apskaita5.DAL.Common
         }
 
         /// <summary>
-        /// Gets the data stored in the column specified by index and converted to DateTimeOffset.
+        /// Gets the data stored in the column specified as DateTimeOffset.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
         /// <remarks>Uses <see cref="GetDateTime">GetDateTime</see> method to get a DateTime
@@ -962,7 +901,7 @@ namespace Apskaita5.DAL.Common
         }
 
         /// <summary>
-        /// Gets the data stored in the column specified by index and converted to byte array.
+        /// Gets the data stored in the column specified as byte[].
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
         /// <remarks>Returns null if the underlying value is null.</remarks>
@@ -980,33 +919,300 @@ namespace Apskaita5.DAL.Common
         }
 
         /// <summary>
-        /// Gets an enum value by converting int value (if it is int value) to the appropriate enum value.
+        /// Gets the data stored in the column specified as an enumeration of type T. 
         /// </summary>
         /// <typeparam name="T">The type of the enumeration.</typeparam>
         /// <param name="i">The zero-based index of the column.</param>
-        /// <remarks>Should only be used when the enumeration values has int values assigned (not flags).</remarks>
+        /// <remarks>Does not support flags.
+        /// Gets an enum value by converting int value (if it is int value) to the appropriate enum value
+        /// or by parsing string value (if it is string value) to the appropriate enum value.</remarks>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <exception cref="InvalidCastException">Failed to cast type on the null column value.</exception>
         /// <exception cref="FormatException">The column value is not in an appropriate format.</exception>
         /// <exception cref="ArgumentException">Type T is not an enumeration.</exception>
         /// <exception cref="InvalidCastException">Enum value for int code is not defined.</exception>
-        public T GetEnum<T>(int i)
+        public T GetEnum<T>(int i) 
         {
             if (!typeof(T).IsEnum)
                 throw new ArgumentException(string.Format(Properties.Resources.LightDataRow_ColumnValueIsNotEnumeration, typeof(T).FullName));
 
-            var intValue = GetInt32(i);
+            if (TryGetInt32(i, out int intValue))
+            {
+                if (!Enum.IsDefined(typeof(T), intValue))
+                    throw new InvalidCastException(string.Format(Properties.Resources.LightDataRow_EnumValueInvalid,
+                        typeof(T).Name, intValue.ToString()));
 
-            if (!Enum.IsDefined(typeof(T),intValue))
-                throw new InvalidCastException(string.Format(Properties.Resources.LightDataRow_EnumValueInvalid, 
-                    typeof(T).Name, intValue.ToString()));
+                return (T)(object)intValue;
+            }
 
-            return (T)(object)intValue;
+            if (TryReadString(GetValueForCast(i, true), out string stringValue) && !stringValue.IsNullOrWhiteSpace())
+            {
+                try
+                {
+                    return (T)Enum.Parse(typeof(T), stringValue, true);
+                }
+                catch (Exception)
+                {
+                    throw new InvalidCastException(string.Format(Properties.Resources.LightDataRow_EnumStringValueInvalid,
+                        typeof(T).Name, stringValue));
+                }
+            }
+
+            throw new FormatException(Properties.Resources.LightDataRow_ColumnValueFormatInvalid);
+
         }
 
 
         /// <summary>
-        /// Gets the data stored in the column specified by index and converted to boolean.
+        /// Gets the data stored in the column specified as boolean.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <remarks>If the underlying value type is numeric, returns "!= 0".
+        /// If the underlying value type is string, tries to parse value as "true" or "false"
+        /// or to parse Int64 value using InvariantCulture and do "!= 0" conversion. 
+        /// if the underlying value type is byte[], tries to convert to string using UTF8 encoding 
+        /// and parse the string.</remarks>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <exception cref="InvalidCastException">Failed to cast type on the null column value.</exception>
+        /// <exception cref="FormatException">The column value is not in an appropriate format.</exception>
+        public bool GetBoolean(string columnName)
+        {
+            return GetBoolean(GetOrdinal(columnName));
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as byte.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <remarks>Does checked conversions if the underlying value type is sbyte. 
+        /// (narrowing conversion from int types does not make sense for byte)
+        /// Tries to parse value using InvariantCulture if the underlying value type is string.
+        /// Tries to convert to string using UTF8 encoding and parse value using InvariantCulture 
+        /// if the underlying value type is byte array.</remarks>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <exception cref="InvalidCastException">Failed to cast type on the null column value.</exception>
+        /// <exception cref="FormatException">The column value is not in an appropriate format.</exception>
+        public byte GetByte(string columnName)
+        {
+            return GetByte(GetOrdinal(columnName));
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as sbyte.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <remarks>Only returns a sbyte value if the underlying value type is sbyte.</remarks>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <exception cref="InvalidCastException">Failed to cast type on the null column value.</exception>
+        /// <exception cref="FormatException">The column value is not in an appropriate format.</exception>
+        public sbyte GetSByte(string columnName)
+        {
+            return GetSByte(GetOrdinal(columnName));
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as char.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <remarks>Returns the first char (after Trim) if the underlying value type is string.
+        /// Tries to convert to string using UTF8 encoding and to return the first char (after Trim)
+        /// if the underlying value type is byte array.</remarks>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <exception cref="InvalidCastException">Failed to cast type on the null column value.</exception>
+        /// <exception cref="FormatException">The column value is not in an appropriate format.</exception>
+        public char GetChar(string columnName)
+        {
+            return GetChar(GetOrdinal(columnName));
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as Guid.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <remarks>Returns Guid.Empty if the underlying value is null or empty string or empty byte array.
+        /// Tries to parse value if the underlying value type is string or 16 byte array.
+        /// Tries to convert to string using UTF8 encoding and parse the string 
+        /// if the underlying value type is byte array and it's size is not 16.</remarks>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <exception cref="FormatException">The column value is not in an appropriate format.</exception>
+        public Guid GetGuid(string columnName)
+        {
+            return GetGuid(GetOrdinal(columnName));
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as Int16.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <remarks>Does checked conversions if the underlying value type is numeric or decimal.
+        /// Tries to parse value using InvariantCulture if the underlying value type is string.
+        /// Tries to convert to string using UTF8 encoding and parse value using InvariantCulture 
+        /// if the underlying value type is byte array.</remarks>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <exception cref="InvalidCastException">Failed to cast type on the null column value.</exception>
+        /// <exception cref="FormatException">The column value is not in an appropriate format.</exception>
+        public short GetInt16(string columnName)
+        {
+            return GetInt16(GetOrdinal(columnName));
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as Int32.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <remarks>Does checked conversions if the underlying value type is numeric or decimal.
+        /// Tries to parse value using InvariantCulture if the underlying value type is string.
+        /// Tries to convert to string using UTF8 encoding and parse value using InvariantCulture 
+        /// if the underlying value type is byte array.</remarks>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <exception cref="InvalidCastException">Failed to cast type on the null column value.</exception>
+        /// <exception cref="FormatException">The column value is not in an appropriate format.</exception>
+        public int GetInt32(string columnName)
+        {
+            return GetInt32(GetOrdinal(columnName));
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as Int64.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <remarks>Does checked conversions if the underlying value type is numeric or decimal.
+        /// Tries to parse value using InvariantCulture if the underlying value type is string.
+        /// Tries to convert to string using UTF8 encoding and parse value using InvariantCulture 
+        /// if the underlying value type is byte array.</remarks>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <exception cref="InvalidCastException">Failed to cast type on the null column value.</exception>
+        /// <exception cref="FormatException">The column value is not in an appropriate format.</exception>
+        public long GetInt64(string columnName)
+        {
+            return GetInt64(GetOrdinal(columnName));
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as float.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <remarks>Tries to parse value using InvariantCulture if the underlying value type is string.
+        /// Tries to convert to string using UTF8 encoding and parse value using InvariantCulture 
+        /// if the underlying value type is byte array.</remarks>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <exception cref="InvalidCastException">Failed to cast type on the null column value.</exception>
+        /// <exception cref="FormatException">The column value is not in an appropriate format.</exception>
+        public float GetFloat(string columnName)
+        {
+            return GetFloat(GetOrdinal(columnName));
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as double.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <remarks>Casts to double if the underlying value type is float.
+        /// Tries to parse value using InvariantCulture if the underlying value type is string.
+        /// Tries to convert to string using UTF8 encoding and parse value using InvariantCulture 
+        /// if the underlying value type is byte array.</remarks>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <exception cref="InvalidCastException">Failed to cast type on the null column value.</exception>
+        /// <exception cref="FormatException">The column value is not in an appropriate format.</exception>
+        public double GetDouble(string columnName)
+        {
+            return GetDouble(GetOrdinal(columnName));
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as string.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <remarks>Returns null if the underlying value is null.
+        /// Tries to convert to string using UTF8 encoding and parse value using InvariantCulture 
+        /// if the underlying value type is byte array.
+        /// Tries to cast to string in other cases.</remarks>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        public string GetString(string columnName)
+        {
+            return GetString(GetOrdinal(columnName));
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as decimal.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <remarks>Tries to parse value using InvariantCulture if the underlying value type is string.
+        /// Tries to convert to string using UTF8 encoding and parse value using InvariantCulture 
+        /// if the underlying value type is byte array.</remarks>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <exception cref="InvalidCastException">Failed to cast type on the null column value.</exception>
+        /// <exception cref="FormatException">The column value is not in an appropriate format.</exception>
+        public decimal GetDecimal(string columnName)
+        {
+
+            return GetDecimal(GetOrdinal(columnName));
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as DateTime.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <remarks>Tries to parse the value using either formats specified by 
+        /// <see cref="LightDataTable.DateTimeFormats">parent table</see>
+        /// or <see cref="LightDataTable.GetDefaultDateTimeFormats">default formats</see>
+        /// if the underlying value type is string. 
+        /// Tries to convert to string using UTF8 encoding and parse the string 
+        /// if the underlying value type is byte array.
+        /// Tries to cast to DateTime in other cases.</remarks>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <exception cref="InvalidCastException">Failed to cast type on the null column value.</exception>
+        public DateTime GetDateTime(string columnName)
+        {
+            return GetDateTime(GetOrdinal(columnName));
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as DateTimeOffset.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <remarks>Uses <see cref="GetDateTime">GetDateTime</see> method to get a DateTime
+        /// value and initializes a DateTimeOffset value with it.</remarks>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <exception cref="InvalidCastException">Failed to cast type on the null column value.</exception>
+        public DateTimeOffset GetDateTimeOffset(string columnName)
+        {
+            return GetDateTimeOffset(GetOrdinal(columnName));
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as byte[].
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <remarks>Returns null if the underlying value is null.</remarks>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <exception cref="InvalidCastException">The column value is not a byte array.</exception>
+        public byte[] GetByteArray(string columnName)
+        {
+            return GetByteArray(GetOrdinal(columnName));
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as an enumeration of type T. 
+        /// </summary>
+        /// <typeparam name="T">The type of the enumeration.</typeparam>
+        /// <param name="columnName">A name of the column.</param>
+        /// <remarks>Does not support flags.
+        /// Gets an enum value by converting int value (if it is int value) to the appropriate enum value
+        /// or by parsing string value (if it is string value) to the appropriate enum value.</remarks>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <exception cref="InvalidCastException">Failed to cast type on the null column value.</exception>
+        /// <exception cref="FormatException">The column value is not in an appropriate format.</exception>
+        /// <exception cref="ArgumentException">Type T is not an enumeration.</exception>
+        /// <exception cref="InvalidCastException">Enum value for int code is not defined.</exception>
+        public T GetEnum<T>(string columnName)
+        {
+            return GetEnum<T>(GetOrdinal(columnName));
+        }
+
+
+        /// <summary>
+        /// Gets the data stored in the column specified as boolean.
         /// A return value indicates whether the operation succeeded.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
@@ -1032,7 +1238,7 @@ namespace Apskaita5.DAL.Common
         }
 
         /// <summary>
-        /// Gets the data stored in the column specified by index and converted to byte.
+        /// Gets the data stored in the column specified as byte.
         /// A return value indicates whether the operation succeeded.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
@@ -1057,7 +1263,7 @@ namespace Apskaita5.DAL.Common
         }
 
         /// <summary>
-        /// Gets the data stored in the column specified by index and converted to sbyte.
+        /// Gets the data stored in the column specified as sbyte.
         /// A return value indicates whether the operation succeeded.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
@@ -1082,7 +1288,7 @@ namespace Apskaita5.DAL.Common
         }
 
         /// <summary>
-        /// Gets the data stored in the column specified by index and converted to char.
+        /// Gets the data stored in the column specified as char.
         /// A return value indicates whether the operation succeeded.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
@@ -1107,7 +1313,7 @@ namespace Apskaita5.DAL.Common
         }
 
         /// <summary>
-        /// Gets the data stored in the column specified by index and converted to Guid.
+        /// Gets the data stored in the column specified as Guid.
         /// A return value indicates whether the operation succeeded.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
@@ -1133,7 +1339,7 @@ namespace Apskaita5.DAL.Common
         }
 
         /// <summary>
-        /// Gets the data stored in the column specified by index and converted to Int16.
+        /// Gets the data stored in the column specified as Int16.
         /// A return value indicates whether the operation succeeded.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
@@ -1159,7 +1365,7 @@ namespace Apskaita5.DAL.Common
         }
 
         /// <summary>
-        /// Gets the data stored in the column specified by index and converted to Int32.
+        /// Gets the data stored in the column specified as Int32.
         /// A return value indicates whether the operation succeeded.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
@@ -1185,7 +1391,7 @@ namespace Apskaita5.DAL.Common
         }
 
         /// <summary>
-        /// Gets the data stored in the column specified by index and converted to Int64.
+        /// Gets the data stored in the column specified as Int64.
         /// A return value indicates whether the operation succeeded.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
@@ -1211,7 +1417,7 @@ namespace Apskaita5.DAL.Common
         }
 
         /// <summary>
-        /// Gets the data stored in the column specified by index and converted to float.
+        /// Gets the data stored in the column specified as float.
         /// A return value indicates whether the operation succeeded.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
@@ -1236,7 +1442,7 @@ namespace Apskaita5.DAL.Common
         }
 
         /// <summary>
-        /// Gets the data stored in the column specified by index and converted to double.
+        /// Gets the data stored in the column specified as double.
         /// A return value indicates whether the operation succeeded.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
@@ -1262,7 +1468,7 @@ namespace Apskaita5.DAL.Common
         }
 
         /// <summary>
-        /// Gets the data stored in the column specified by index and converted to string.
+        /// Gets the data stored in the column specified as string.
         /// A return value indicates whether the operation succeeded.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
@@ -1288,7 +1494,7 @@ namespace Apskaita5.DAL.Common
         }
 
         /// <summary>
-        /// Gets the data stored in the column specified by index and converted to decimal.
+        /// Gets the data stored in the column specified as decimal.
         /// A return value indicates whether the operation succeeded.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
@@ -1314,7 +1520,7 @@ namespace Apskaita5.DAL.Common
         }
 
         /// <summary>
-        /// Gets the data stored in the column specified by index and converted to DateTime.
+        /// Gets the data stored in the column specified as DateTime.
         /// A return value indicates whether the operation succeeded.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
@@ -1340,7 +1546,7 @@ namespace Apskaita5.DAL.Common
         }
 
         /// <summary>
-        /// Gets the data stored in the column specified by index and converted to DateTimeOffset.
+        /// Gets the data stored in the column specified as DateTimeOffset.
         /// A return value indicates whether the operation succeeded.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
@@ -1365,7 +1571,7 @@ namespace Apskaita5.DAL.Common
         }
 
         /// <summary>
-        /// Gets the data stored in the column specified by index and converted to byte array.
+        /// Gets the data stored in the column specified as byte[].
         /// A return value indicates whether the operation succeeded.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
@@ -1390,7 +1596,7 @@ namespace Apskaita5.DAL.Common
         }
 
         /// <summary>
-        /// Gets the data stored in the column specified by index and converted to an enum value.
+        /// Gets the data stored in the column specified as an enum value of type T.
         /// A return value indicates whether the operation succeeded.
         /// </summary>
         /// <typeparam name="T">The type of the enumeration.</typeparam>
@@ -1400,7 +1606,7 @@ namespace Apskaita5.DAL.Common
         /// if the conversion failed.</param>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <exception cref="ArgumentException">Type T is not an enumeration.</exception>
-        /// <remarks>Uses <see cref="GetByteArray">GetByteArray</see> method.</remarks>
+        /// <remarks>Uses <see cref="GetEnum{T}">GetEnum</see> method.</remarks>
         public bool TryGetEnum<T>(int i, out T result)
         {
             CheckIndex(i);
@@ -1422,7 +1628,251 @@ namespace Apskaita5.DAL.Common
 
 
         /// <summary>
-        /// Gets the data stored in the column specified by index and converted to boolean.
+        /// Gets the data stored in the column specified as boolean.
+        /// A return value indicates whether the operation succeeded.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <param name="result">When this method returns, contains the converted value equivalent 
+        /// of the value contained in the column, if the conversion succeeded, or default value 
+        /// if the conversion failed.</param>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <remarks>Uses <see cref="GetBoolean">GetBoolean</see> method.</remarks>
+        public bool TryGetBoolean(string columnName, out bool result)
+        {
+            return TryGetBoolean(GetOrdinal(columnName), out result);
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as byte.
+        /// A return value indicates whether the operation succeeded.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <param name="result">When this method returns, contains the converted value equivalent 
+        /// of the value contained in the column, if the conversion succeeded, or default value 
+        /// if the conversion failed.</param>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <remarks>Uses <see cref="GetByte">GetByte</see> method.</remarks>
+        public bool TryGetByte(string columnName, out byte result)
+        {
+            return TryGetByte(GetOrdinal(columnName), out result);
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as sbyte.
+        /// A return value indicates whether the operation succeeded.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <param name="result">When this method returns, contains the converted value equivalent 
+        /// of the value contained in the column, if the conversion succeeded, or default value 
+        /// if the conversion failed.</param>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <remarks>Uses <see cref="GetSByte">GetSByte</see> method.</remarks>
+        public bool TryGetSByte(string columnName, out sbyte result)
+        {
+            return TryGetSByte(GetOrdinal(columnName), out result);
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as char.
+        /// A return value indicates whether the operation succeeded.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <param name="result">When this method returns, contains the converted value equivalent 
+        /// of the value contained in the column, if the conversion succeeded, or default value 
+        /// if the conversion failed.</param>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <remarks>Uses <see cref="GetChar">GetChar</see> method.</remarks>
+        public bool TryGetChar(string columnName, out char result)
+        {
+            return TryGetChar(GetOrdinal(columnName), out result);
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as Guid.
+        /// A return value indicates whether the operation succeeded.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <param name="result">When this method returns, contains the converted value equivalent 
+        /// of the value contained in the column, if the conversion succeeded, or Guid.Empty 
+        /// if the conversion failed.</param>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <remarks>Uses <see cref="GetGuid">GetGuid</see> method.</remarks>
+        public bool TryGetGuid(string columnName, out Guid result)
+        {
+            return TryGetGuid(GetOrdinal(columnName), out result);
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as Int16.
+        /// A return value indicates whether the operation succeeded.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <param name="result">When this method returns, contains the converted value equivalent 
+        /// of the value contained in the column, if the conversion succeeded, or default value 
+        /// if the conversion failed.</param>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <remarks>Uses <see cref="GetInt16">GetInt16</see> method.</remarks>
+        public bool TryGetInt16(string columnName, out short result)
+        {
+            return TryGetInt16(GetOrdinal(columnName), out result);
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as Int32.
+        /// A return value indicates whether the operation succeeded.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <param name="result">When this method returns, contains the converted value equivalent 
+        /// of the value contained in the column, if the conversion succeeded, or default value 
+        /// if the conversion failed.</param>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <remarks>Uses <see cref="GetInt32">GetInt32</see> method.</remarks>
+        public bool TryGetInt32(string columnName, out int result)
+        {
+            return TryGetInt32(GetOrdinal(columnName), out result);
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as Int64.
+        /// A return value indicates whether the operation succeeded.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <param name="result">When this method returns, contains the converted value equivalent 
+        /// of the value contained in the column, if the conversion succeeded, or default value 
+        /// if the conversion failed.</param>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <remarks>Uses <see cref="GetInt64">GetInt64</see> method.</remarks>
+        public bool TryGetInt64(string columnName, out Int64 result)
+        {
+            return TryGetInt64(GetOrdinal(columnName), out result);
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as float.
+        /// A return value indicates whether the operation succeeded.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <param name="result">When this method returns, contains the converted value equivalent 
+        /// of the value contained in the column, if the conversion succeeded, or default value 
+        /// if the conversion failed.</param>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <remarks>Uses <see cref="GetFloat">GetFloat</see> method.</remarks>
+        public bool TryGetFloat(string columnName, out float result)
+        {
+            return TryGetFloat(GetOrdinal(columnName), out result);
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as double.
+        /// A return value indicates whether the operation succeeded.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <param name="result">When this method returns, contains the converted value equivalent 
+        /// of the value contained in the column, if the conversion succeeded, or default value 
+        /// if the conversion failed.</param>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <remarks>Uses <see cref="GetDouble">GetDouble</see> method.</remarks>
+        public bool TryGetDouble(string columnName, out double result)
+        {
+            return TryGetDouble(GetOrdinal(columnName), out result);
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as string.
+        /// A return value indicates whether the operation succeeded.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <param name="result">When this method returns, contains the converted value equivalent 
+        /// of the value contained in the column, if the conversion succeeded, or default value 
+        /// if the conversion failed.</param>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <remarks>Uses <see cref="GetString">GetString</see> method.</remarks>
+        public bool TryGetString(string columnName, out string result)
+        {
+            return TryGetString(GetOrdinal(columnName), out result);
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as decimal.
+        /// A return value indicates whether the operation succeeded.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <param name="result">When this method returns, contains the converted value equivalent 
+        /// of the value contained in the column, if the conversion succeeded, or default value 
+        /// if the conversion failed.</param>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <remarks>Uses <see cref="GetDecimal">GetDecimal</see> method.</remarks>
+        public bool TryGetDecimal(string columnName, out decimal result)
+        {
+            return TryGetDecimal(GetOrdinal(columnName), out result);
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as DateTime.
+        /// A return value indicates whether the operation succeeded.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <param name="result">When this method returns, contains the converted value equivalent 
+        /// of the value contained in the column, if the conversion succeeded, or default value 
+        /// if the conversion failed.</param>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <remarks>Uses <see cref="GetDateTime">GetDateTime</see> method.</remarks>
+        public bool TryGetDateTime(string columnName, out DateTime result)
+        {
+            return TryGetDateTime(GetOrdinal(columnName), out result);
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as DateTimeOffset.
+        /// A return value indicates whether the operation succeeded.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <param name="result">When this method returns, contains the converted value equivalent 
+        /// of the value contained in the column, if the conversion succeeded, or default value 
+        /// if the conversion failed.</param>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <remarks>Uses <see cref="GetDateTimeOffset">GetDateTimeOffset</see> method.</remarks>
+        public bool TryGetDateTimeOffset(string columnName, out DateTimeOffset result)
+        {
+            return TryGetDateTimeOffset(GetOrdinal(columnName), out result);
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as byte[].
+        /// A return value indicates whether the operation succeeded.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <param name="result">When this method returns, contains the converted value equivalent 
+        /// of the value contained in the column, if the conversion succeeded, or null 
+        /// if the conversion failed.</param>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <remarks>Uses <see cref="GetByteArray">GetByteArray</see> method.</remarks>
+        public bool TryGetByteArray(string columnName, out byte[] result)
+        {
+            return TryGetByteArray(GetOrdinal(columnName), out result);
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as an enum value of type T.
+        /// A return value indicates whether the operation succeeded.
+        /// </summary>
+        /// <typeparam name="T">The type of the enumeration.</typeparam>
+        /// <param name="columnName">A name of the column.</param>
+        /// <param name="result">When this method returns, contains the converted value equivalent 
+        /// of the value contained in the column, if the conversion succeeded, or default value 
+        /// if the conversion failed.</param>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <exception cref="ArgumentException">Type T is not an enumeration.</exception>
+        /// <remarks>Uses <see cref="GetEnum{T}">GetEnum</see> method.</remarks>
+        public bool TryGetEnum<T>(string columnName, out T result)
+        {
+            return TryGetEnum<T>(GetOrdinal(columnName), out result);
+        }
+
+
+
+        /// <summary>
+        /// Gets the data stored in the column specified as boolean.
         /// If the conversion fails, returns defaultValue.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
@@ -1435,7 +1885,7 @@ namespace Apskaita5.DAL.Common
         }
 
         /// <summary>
-        /// Gets the data stored in the column specified by index and converted to byte.
+        /// Gets the data stored in the column specified as byte.
         /// If the conversion fails, returns defaultValue.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
@@ -1448,7 +1898,7 @@ namespace Apskaita5.DAL.Common
         }
 
         /// <summary>
-        /// Gets the data stored in the column specified by index and converted to sbyte.
+        /// Gets the data stored in the column specified as sbyte.
         /// If the conversion fails, returns defaultValue.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
@@ -1461,7 +1911,7 @@ namespace Apskaita5.DAL.Common
         }
 
         /// <summary>
-        /// Gets the data stored in the column specified by index and converted to char.
+        /// Gets the data stored in the column specified as char.
         /// If the conversion fails, returns defaultValue.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
@@ -1474,7 +1924,7 @@ namespace Apskaita5.DAL.Common
         }
 
         /// <summary>
-        /// Gets the data stored in the column specified by index and converted to Guid.
+        /// Gets the data stored in the column specified as Guid.
         /// If the conversion fails, returns defaultValue.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
@@ -1487,7 +1937,7 @@ namespace Apskaita5.DAL.Common
         }
 
         /// <summary>
-        /// Gets the data stored in the column specified by index and converted to Int16.
+        /// Gets the data stored in the column specified as Int16.
         /// If the conversion fails, returns defaultValue.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
@@ -1500,7 +1950,7 @@ namespace Apskaita5.DAL.Common
         }
 
         /// <summary>
-        /// Gets the data stored in the column specified by index and converted to Int32.
+        /// Gets the data stored in the column specified as Int32.
         /// If the conversion fails, returns defaultValue.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
@@ -1513,7 +1963,7 @@ namespace Apskaita5.DAL.Common
         }
 
         /// <summary>
-        /// Gets the data stored in the column specified by index and converted to Int64.
+        /// Gets the data stored in the column specified as Int64.
         /// If the conversion fails, returns defaultValue.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
@@ -1526,7 +1976,7 @@ namespace Apskaita5.DAL.Common
         }
 
         /// <summary>
-        /// Gets the data stored in the column specified by index and converted to float.
+        /// Gets the data stored in the column specified as float.
         /// If the conversion fails, returns defaultValue.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
@@ -1539,7 +1989,7 @@ namespace Apskaita5.DAL.Common
         }
 
         /// <summary>
-        /// Gets the data stored in the column specified by index and converted to double.
+        /// Gets the data stored in the column specified as double.
         /// If the conversion fails, returns defaultValue.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
@@ -1552,7 +2002,7 @@ namespace Apskaita5.DAL.Common
         }
 
         /// <summary>
-        /// Gets the data stored in the column specified by index and converted to string.
+        /// Gets the data stored in the column specified as string.
         /// If the conversion fails, returns defaultValue.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
@@ -1565,7 +2015,19 @@ namespace Apskaita5.DAL.Common
         }
 
         /// <summary>
-        /// Gets the data stored in the column specified by index and converted to decimal.
+        /// Gets the data stored in the column specified as string.
+        /// If the conversion fails, returns defaultValue.
+        /// </summary>
+        /// <param name="i">The zero-based index of the column.</param>
+        /// <remarks>Uses <see cref="TryGetString">TryGetString</see> method.</remarks>
+        public string GetStringOrDefault(int i)
+        {
+            if (TryGetString(i, out string value)) return value;
+            return string.Empty;
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as decimal.
         /// If the conversion fails, returns defaultValue.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
@@ -1578,7 +2040,7 @@ namespace Apskaita5.DAL.Common
         }
 
         /// <summary>
-        /// Gets the data stored in the column specified by index and converted to DateTime.
+        /// Gets the data stored in the column specified as DateTime.
         /// If the conversion fails, returns defaultValue.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
@@ -1591,7 +2053,7 @@ namespace Apskaita5.DAL.Common
         }
 
         /// <summary>
-        /// Gets the data stored in the column specified by index and converted to DateTimeOffset.
+        /// Gets the data stored in the column specified by as DateTimeOffset.
         /// If the conversion fails, returns defaultValue.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
@@ -1604,7 +2066,7 @@ namespace Apskaita5.DAL.Common
         }
 
         /// <summary>
-        /// Gets the data stored in the column specified by index and converted to byte array.
+        /// Gets the data stored in the column specified as byte[].
         /// If the conversion fails, returns defaultValue.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
@@ -1617,7 +2079,7 @@ namespace Apskaita5.DAL.Common
         }
 
         /// <summary>
-        /// Gets the data stored in the column specified by index and converted to an enum value.
+        /// Gets the data stored in the column specified as an enum value of type T.
         /// If the conversion fails, returns defaultValue.
         /// </summary>
         /// <typeparam name="T">The type of the enumeration.</typeparam>
@@ -1628,6 +2090,211 @@ namespace Apskaita5.DAL.Common
         {
             if (TryGetEnum<T>(i, out T value)) return value;
             return defaultValue;
+        }
+
+
+        /// <summary>
+        /// Gets the data stored in the column specified as boolean.
+        /// If the conversion fails, returns defaultValue.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <param name="defaultValue">The value to return if the conversion fails.</param>
+        /// <remarks>Uses <see cref="TryGetBoolean">TryGetBoolean</see> method.</remarks>
+        public bool GetBooleanOrDefault(string columnName, bool defaultValue)
+        {
+            return GetBooleanOrDefault(GetOrdinal(columnName), defaultValue);
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as byte.
+        /// If the conversion fails, returns defaultValue.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <param name="defaultValue">The value to return if the conversion fails.</param>
+        /// <remarks>Uses <see cref="TryGetByte">TryGetByte</see> method.</remarks>
+        public byte GetByteOrDefault(string columnName, byte defaultValue)
+        {
+            return GetByteOrDefault(GetOrdinal(columnName), defaultValue);
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as sbyte.
+        /// If the conversion fails, returns defaultValue.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <param name="defaultValue">The value to return if the conversion fails.</param>
+        /// <remarks>Uses <see cref="TryGetSByte">TryGetSByte</see> method.</remarks>
+        public sbyte GetSByteOrDefault(string columnName, sbyte defaultValue)
+        {
+            return GetSByteOrDefault(GetOrdinal(columnName), defaultValue);
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as char.
+        /// If the conversion fails, returns defaultValue.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <param name="defaultValue">The value to return if the conversion fails.</param>
+        /// <remarks>Uses <see cref="TryGetChar">TryGetChar</see> method.</remarks>
+        public char GetCharOrDefault(string columnName, char defaultValue)
+        {
+            return GetCharOrDefault(GetOrdinal(columnName), defaultValue);
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as Guid.
+        /// If the conversion fails, returns defaultValue.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <param name="defaultValue">The value to return if the conversion fails.</param>
+        /// <remarks>Uses <see cref="TryGetGuid">TryGetGuid</see> method.</remarks>
+        public Guid GetGuidOrDefault(string columnName, Guid defaultValue)
+        {
+            return GetGuidOrDefault(GetOrdinal(columnName), defaultValue);
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as Int16.
+        /// If the conversion fails, returns defaultValue.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <param name="defaultValue">The value to return if the conversion fails.</param>
+        /// <remarks>Uses <see cref="TryGetInt16">TryGetInt16</see> method.</remarks>
+        public short GetInt16OrDefault(string columnName, short defaultValue)
+        {
+            return GetInt16OrDefault(GetOrdinal(columnName), defaultValue);
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as Int32.
+        /// If the conversion fails, returns defaultValue.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <param name="defaultValue">The value to return if the conversion fails.</param>
+        /// <remarks>Uses <see cref="TryGetInt32">TryGetInt32</see> method.</remarks>
+        public int GetInt32OrDefault(string columnName, int defaultValue)
+        {
+            return GetInt32OrDefault(GetOrdinal(columnName), defaultValue);
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as Int64.
+        /// If the conversion fails, returns defaultValue.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <param name="defaultValue">The value to return if the conversion fails.</param>
+        /// <remarks>Uses <see cref="TryGetInt64">TryGetInt64</see> method.</remarks>
+        public Int64 GetInt64OrDefault(string columnName, Int64 defaultValue)
+        {
+            return GetInt64OrDefault(GetOrdinal(columnName), defaultValue);
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as float.
+        /// If the conversion fails, returns defaultValue.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <param name="defaultValue">The value to return if the conversion fails.</param>
+        /// <remarks>Uses <see cref="TryGetFloat">TryGetFloat</see> method.</remarks>
+        public float GetFloatOrDefault(string columnName, float defaultValue)
+        {
+            return GetFloatOrDefault(GetOrdinal(columnName), defaultValue);
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as double.
+        /// If the conversion fails, returns defaultValue.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <param name="defaultValue">The value to return if the conversion fails.</param>
+        /// <remarks>Uses <see cref="TryGetDouble">TryGetDouble</see> method.</remarks>
+        public double GetDoubleOrDefault(string columnName, double defaultValue)
+        {
+            return GetDoubleOrDefault(GetOrdinal(columnName), defaultValue);
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as string.
+        /// If the conversion fails, returns defaultValue.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <param name="defaultValue">The value to return if the conversion fails.</param>
+        /// <remarks>Uses <see cref="TryGetString">TryGetString</see> method.</remarks>
+        public string GetStringOrDefault(string columnName, string defaultValue)
+        {
+            return GetStringOrDefault(GetOrdinal(columnName), defaultValue);
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as string.
+        /// If the conversion fails, returns defaultValue.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <remarks>Uses <see cref="TryGetString">TryGetString</see> method.</remarks>
+        public string GetStringOrDefault(string columnName)
+        {
+            return GetStringOrDefault(GetOrdinal(columnName));
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as decimal.
+        /// If the conversion fails, returns defaultValue.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <param name="defaultValue">The value to return if the conversion fails.</param>
+        /// <remarks>Uses <see cref="TryGetDecimal">TryGetDecimal</see> method.</remarks>
+        public decimal GetDecimalOrDefault(string columnName, decimal defaultValue)
+        {
+            return GetDecimalOrDefault(GetOrdinal(columnName), defaultValue);
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as DateTime.
+        /// If the conversion fails, returns defaultValue.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <param name="defaultValue">The value to return if the conversion fails.</param>
+        /// <remarks>Uses <see cref="TryGetDateTime">TryGetDateTime</see> method.</remarks>
+        public DateTime GetDateTimeOrDefault(string columnName, DateTime defaultValue)
+        {
+            return GetDateTimeOrDefault(GetOrdinal(columnName), defaultValue);
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified by as DateTimeOffset.
+        /// If the conversion fails, returns defaultValue.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <param name="defaultValue">The value to return if the conversion fails.</param>
+        /// <remarks>Uses <see cref="TryGetDateTimeOffset">TryGetDateTimeOffset</see> method.</remarks>
+        public DateTimeOffset GetDateTimeOffsetOrDefault(string columnName, DateTimeOffset defaultValue)
+        {
+            return GetDateTimeOffsetOrDefault(GetOrdinal(columnName), defaultValue);
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as byte[].
+        /// If the conversion fails, returns defaultValue.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <param name="defaultValue">The value to return if the conversion fails.</param>
+        /// <remarks>Uses <see cref="TryGetByteArray">TryGetByteArray</see> method.</remarks>
+        public byte[] GetByteArrayOrDefault(string columnName, byte[] defaultValue)
+        {
+            return GetByteArrayOrDefault(GetOrdinal(columnName), defaultValue);
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as an enum value of type T.
+        /// If the conversion fails, returns defaultValue.
+        /// </summary>
+        /// <typeparam name="T">The type of the enumeration.</typeparam>
+        /// <param name="columnName">A name of the column.</param>
+        /// <param name="defaultValue">The value to return if the conversion fails.</param>
+        /// <remarks>Uses <see cref="TryGetEnum{T}">">TryGetEnum</see> method.</remarks>
+        public T GetEnumOrDefault<T>(string columnName, T defaultValue)
+        {
+            return GetEnumOrDefault<T>(GetOrdinal(columnName), defaultValue);
         }
 
 
@@ -1656,6 +2323,18 @@ namespace Apskaita5.DAL.Common
                 result = string.Empty;
                 return false;
             }
+        }
+
+        private bool TryReadString(object source, out string result)
+        {
+            if (source is string)
+            {
+                result = (string)source;
+                return true;
+            }
+            if (source is byte[]) return TryReadString((byte[])source, out result);
+            result = null;
+            return false;
         }
 
         private bool TryParseDateTime(string source, out DateTime result)

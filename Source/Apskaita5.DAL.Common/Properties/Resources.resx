@@ -252,6 +252,9 @@
   <data name="LightDataRow_DataTypeMismatch" xml:space="preserve">
     <value>The data types of the value and the column do not match.</value>
   </data>
+  <data name="LightDataRow_EnumStringValueInvalid" xml:space="preserve">
+    <value>Enum {0} value for string code {1} is not defined.</value>
+  </data>
   <data name="LightDataRow_EnumValueInvalid" xml:space="preserve">
     <value>Enum {0} value for int code {1} is not defined.</value>
   </data>

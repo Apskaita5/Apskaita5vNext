@@ -64,6 +64,7 @@ namespace DeveloperUtils
 
         private void SqlDictionaryForm_Load(object sender, EventArgs e)
         {
+            this.sqlRepositoryDataGridView.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.DisplayedCellsExceptHeaders;
             _currentSource = new SqlRepository();
             this.sqlRepositoryBindingSource.DataSource = _currentSource;
             this.Text = "New SQL Dictionary";
