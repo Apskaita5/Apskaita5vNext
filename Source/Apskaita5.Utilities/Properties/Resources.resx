@@ -126,6 +126,9 @@
   <data name="LocalizedResourceMissing" xml:space="preserve">
     <value>Localized resource for the language {0} is missing. (current culture - {1})</value>
   </data>
+  <data name="ObjectNotFound" xml:space="preserve">
+    <value>Object of type {0} is not found using id={1}.</value>
+  </data>
   <data name="ParameterCannotBeNegative" xml:space="preserve">
     <value>Parameter {0} cannot be negative.</value>
   </data>

@@ -55,8 +55,8 @@
             // 
             // groupBox1
             // 
-            this.groupBox1.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left)
-                        | System.Windows.Forms.AnchorStyles.Right)));
+            this.groupBox1.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
             this.groupBox1.Controls.Add(this.openSourceDatabaseFileButton);
             this.groupBox1.Controls.Add(this.sourceDatabaseTextBox);
             this.groupBox1.Controls.Add(this.sourceConnectionStringTextBox);
@@ -84,8 +84,8 @@
             // 
             // sourceDatabaseTextBox
             // 
-            this.sourceDatabaseTextBox.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left)
-                        | System.Windows.Forms.AnchorStyles.Right)));
+            this.sourceDatabaseTextBox.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
             this.sourceDatabaseTextBox.Location = new System.Drawing.Point(120, 72);
             this.sourceDatabaseTextBox.Name = "sourceDatabaseTextBox";
             this.sourceDatabaseTextBox.Size = new System.Drawing.Size(448, 20);
@@ -94,8 +94,8 @@
             // sourceConnectionStringTextBox
             // 
             this.sourceConnectionStringTextBox.AcceptsReturn = true;
-            this.sourceConnectionStringTextBox.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left)
-                        | System.Windows.Forms.AnchorStyles.Right)));
+            this.sourceConnectionStringTextBox.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
             this.sourceConnectionStringTextBox.Location = new System.Drawing.Point(120, 46);
             this.sourceConnectionStringTextBox.Name = "sourceConnectionStringTextBox";
             this.sourceConnectionStringTextBox.Size = new System.Drawing.Size(480, 20);
@@ -130,8 +130,8 @@
             // 
             // sourceSqlAgentsComboBox
             // 
-            this.sourceSqlAgentsComboBox.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left)
-                        | System.Windows.Forms.AnchorStyles.Right)));
+            this.sourceSqlAgentsComboBox.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
             this.sourceSqlAgentsComboBox.FormattingEnabled = true;
             this.sourceSqlAgentsComboBox.Location = new System.Drawing.Point(120, 19);
             this.sourceSqlAgentsComboBox.Name = "sourceSqlAgentsComboBox";
@@ -140,8 +140,8 @@
             // 
             // groupBox2
             // 
-            this.groupBox2.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left)
-                        | System.Windows.Forms.AnchorStyles.Right)));
+            this.groupBox2.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
             this.groupBox2.Controls.Add(this.openTargetDatabaseFileButton);
             this.groupBox2.Controls.Add(this.targetDatabaseTextBox);
             this.groupBox2.Controls.Add(this.targetConnectionStringTextBox);
@@ -170,17 +170,18 @@
             // targetDatabaseTextBox
             // 
             this.targetDatabaseTextBox.AcceptsReturn = true;
-            this.targetDatabaseTextBox.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left)
-                        | System.Windows.Forms.AnchorStyles.Right)));
+            this.targetDatabaseTextBox.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
             this.targetDatabaseTextBox.Location = new System.Drawing.Point(120, 72);
             this.targetDatabaseTextBox.Name = "targetDatabaseTextBox";
             this.targetDatabaseTextBox.Size = new System.Drawing.Size(448, 20);
             this.targetDatabaseTextBox.TabIndex = 2;
+            this.targetDatabaseTextBox.TextChanged += new System.EventHandler(this.targetDatabaseTextBox_TextChanged);
             // 
             // targetConnectionStringTextBox
             // 
-            this.targetConnectionStringTextBox.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left)
-                        | System.Windows.Forms.AnchorStyles.Right)));
+            this.targetConnectionStringTextBox.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
             this.targetConnectionStringTextBox.Location = new System.Drawing.Point(120, 46);
             this.targetConnectionStringTextBox.Name = "targetConnectionStringTextBox";
             this.targetConnectionStringTextBox.Size = new System.Drawing.Size(480, 20);
@@ -194,6 +195,7 @@
             this.label4.Size = new System.Drawing.Size(56, 13);
             this.label4.TabIndex = 10;
             this.label4.Text = "Database:";
+            this.label4.Click += new System.EventHandler(this.label4_Click);
             // 
             // label5
             // 
@@ -215,8 +217,8 @@
             // 
             // targetSqlAgentsComboBox
             // 
-            this.targetSqlAgentsComboBox.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left)
-                        | System.Windows.Forms.AnchorStyles.Right)));
+            this.targetSqlAgentsComboBox.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
             this.targetSqlAgentsComboBox.FormattingEnabled = true;
             this.targetSqlAgentsComboBox.Location = new System.Drawing.Point(120, 19);
             this.targetSqlAgentsComboBox.Name = "targetSqlAgentsComboBox";
@@ -248,8 +250,8 @@
             // schemaTextBox
             // 
             this.schemaTextBox.AcceptsReturn = true;
-            this.schemaTextBox.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left)
-                        | System.Windows.Forms.AnchorStyles.Right)));
+            this.schemaTextBox.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
             this.schemaTextBox.Location = new System.Drawing.Point(144, 221);
             this.schemaTextBox.Name = "schemaTextBox";
             this.schemaTextBox.ReadOnly = true;

@@ -4,6 +4,7 @@ using System.Data;
 using System.IO;
 using System.Linq;
 using System.Security;
+using System.Threading.Tasks;
 
 namespace Apskaita5.DAL.Common
 {
@@ -19,6 +20,8 @@ namespace Apskaita5.DAL.Common
         protected readonly string _baseConnectionString = string.Empty;
         protected string _currentDatabase = string.Empty;
         private int _queryTimeOut = 10000;
+        private bool _UseTransactionPerInstance = false;
+        private bool _BooleanStoredAsTinyInt = true;
 
         private static readonly string[] ParamLetters = new string[]{"A", "B", "C", "D", "E", 
             "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "Q", "P", "R", "S", "T", "U", "V", "Z", "W"};
@@ -62,6 +65,18 @@ namespace Apskaita5.DAL.Common
         /// Gets a simbol used as a wildcart for the SQL implementation behind the SqlAgent, e.g. %, *, etc.
         /// </summary>
         public abstract string Wildcart { get; }
+
+        /// <summary>
+        /// Gets or sets whether a transaction is stored within SqliteAgent instance.
+        /// If not, a transaction is stored within AsyncLocal storage.
+        /// </summary>
+        public bool UseTransactionPerInstance { get => _UseTransactionPerInstance; set { _UseTransactionPerInstance = value; } }
+
+        /// <summary>
+        /// Gets or sets whether a boolean type is stored as TinyInt, i.e. param values needs
+        /// to be replaced: true = 1; false = 0.
+        /// </summary>
+        public bool BooleanStoredAsTinyInt { get => _BooleanStoredAsTinyInt; set { _BooleanStoredAsTinyInt = value; } }
 
         /// <summary>
         /// Gets a value indicationg whether an SQL transation is in progress.
@@ -134,7 +149,11 @@ namespace Apskaita5.DAL.Common
         /// </summary>
         public SqlAgentBase GetCopy()
         {
-            return this.GetCopyInt();
+            var result = this.GetCopyInt();
+            result._BooleanStoredAsTinyInt = _BooleanStoredAsTinyInt;
+            result._queryTimeOut = _queryTimeOut;
+            result._UseTransactionPerInstance = _UseTransactionPerInstance;
+            return result;
         }
 
         /// <summary>
@@ -146,7 +165,7 @@ namespace Apskaita5.DAL.Common
         /// <summary>
         /// Tries to open connection. If fails, throws an exception.
         /// </summary>
-        public abstract void TestConnection();
+        public abstract Task TestConnectionAsync();
 
         /// <summary>
         /// Executes given <paramref name="method">method</paramref> within an SQL transaction.
@@ -154,7 +173,7 @@ namespace Apskaita5.DAL.Common
         /// by the invoker.
         /// </summary>
         /// <param name="method">a method to execute within an SQL transaction</param>
-        public void ExecuteInTransaction(Action method)
+        public async Task ExecuteInTransactionAsync(Func<Task> method)
         {
 
             bool isOwner = false;
@@ -170,14 +189,14 @@ namespace Apskaita5.DAL.Common
 
                 if (method == null) throw new ArgumentNullException(nameof(method));
 
-                TransactionBegin();
+                await TransactionBeginAsync();
                 isOwner = true;
 
             }
 
             try
             {
-                method();
+                await method();
                 if (isOwner) TransactionCommit();
             }
             catch (Exception ex)
@@ -194,7 +213,7 @@ namespace Apskaita5.DAL.Common
         /// by the invoker.
         /// </summary>
         /// <param name="method">a method to execute within an SQL transaction</param>
-        public void ExecuteInTransaction(Action<SqlAgentBase> method)
+        public async Task ExecuteInTransactionAsync(Func<SqlAgentBase, Task> method)
         {
 
             bool isOwner = false;
@@ -206,13 +225,13 @@ namespace Apskaita5.DAL.Common
             else
             {         
                 if (method == null) throw new ArgumentNullException(nameof(method));
-                TransactionBegin();
+                await TransactionBeginAsync();
                 isOwner = true;
             }
 
             try
             {
-                method(this);
+                await method(this);
                 if (isOwner) TransactionCommit();
             }
             catch (Exception ex)
@@ -230,7 +249,7 @@ namespace Apskaita5.DAL.Common
         /// </summary>
         /// <param name="method">a method to execute within an SQL transaction</param>
         /// <param name="parameter">a custom parameter to pass to the method</param>
-        public void ExecuteInTransaction<T>(Action<SqlAgentBase, T> method, T parameter)
+        public async Task ExecuteInTransactionAsync<T>(Func<SqlAgentBase, T, Task> method, T parameter)
         {
 
             bool isOwner = false;
@@ -242,13 +261,13 @@ namespace Apskaita5.DAL.Common
             else
             {
                 if (method == null) throw new ArgumentNullException(nameof(method));
-                TransactionBegin();
+                await TransactionBeginAsync();
                 isOwner = true;
             }
 
             try
             {
-                method(this, parameter);
+                await method(this, parameter);
                 if (isOwner) TransactionCommit();
             }
             catch (Exception ex)
@@ -266,7 +285,7 @@ namespace Apskaita5.DAL.Common
         /// by the invoker.
         /// </summary>
         /// <param name="method">a method to execute within an SQL transaction</param>
-        public TResult ExecuteInTransaction<TResult>(Func<TResult> method)
+        public async Task<TResult> ExecuteInTransactionAsync<TResult>(Func<Task<TResult>> method)
         {
 
             bool isOwner = false;
@@ -283,14 +302,14 @@ namespace Apskaita5.DAL.Common
 
                 if (method == null) throw new ArgumentNullException(nameof(method));
 
-                TransactionBegin();
+                await TransactionBeginAsync();
                 isOwner = true;
 
             }
 
             try
             {
-                var result = method();
+                var result = await method();
                 if (isOwner) TransactionCommit();
                 return result;
             }
@@ -310,7 +329,7 @@ namespace Apskaita5.DAL.Common
         /// by the invoker.
         /// </summary>
         /// <param name="method">a method to execute within an SQL transaction</param>
-        public TResult ExecuteInTransaction<TResult>(Func<SqlAgentBase, TResult> method)
+        public async Task<TResult> ExecuteInTransactionAsync<TResult>(Func<SqlAgentBase, Task<TResult>> method)
         {
 
             bool isOwner = false;
@@ -327,14 +346,14 @@ namespace Apskaita5.DAL.Common
 
                 if (method == null) throw new ArgumentNullException(nameof(method));
 
-                TransactionBegin();
+                await TransactionBeginAsync();
                 isOwner = true;
 
             }
 
             try
             {
-                var result = method(this);
+                var result = await method(this);
                 if (isOwner) TransactionCommit();
                 return result;
             }
@@ -355,7 +374,7 @@ namespace Apskaita5.DAL.Common
         /// </summary>
         /// <param name="method">a method to execute within an SQL transaction</param>
         /// <param name="parameter">a custom parameter to pass to the method</param>
-        public TResult ExecuteInTransaction<T, TResult>(Func<SqlAgentBase, T, TResult> method, T parameter)
+        public async Task<TResult> ExecuteInTransactionAsync<T, TResult>(Func<SqlAgentBase, T, Task<TResult>> method, T parameter)
         {
 
             bool isOwner = false;
@@ -372,14 +391,14 @@ namespace Apskaita5.DAL.Common
 
                 if (method == null) throw new ArgumentNullException(nameof(method));
 
-                TransactionBegin();
+                await TransactionBeginAsync();
                 isOwner = true;
 
             }
 
             try
             {
-                var result = method(this, parameter);
+                var result = await method(this, parameter);
                 if (isOwner) TransactionCommit();
                 return result;
             }
@@ -395,31 +414,19 @@ namespace Apskaita5.DAL.Common
         /// <summary>
         /// Begins a transaction.
         /// </summary>
-        protected virtual void TransactionBegin()
-        {
-            if (this.IsTransactionInProgress)
-                throw new InvalidOperationException(Properties.Resources.SqlAgentBase_CannotStartTransaction);
-        }
+        protected abstract Task TransactionBeginAsync();
 
         /// <summary>
         /// Commits the current transaction.
         /// </summary>
         /// <exception cref="InvalidOperationException">if no transaction in progress</exception>
-        protected virtual void TransactionCommit()
-        {
-            if (!this.IsTransactionInProgress)
-                throw new InvalidOperationException(Properties.Resources.SqlAgentBase_NoTransactionToCommit);
-        }
+        protected abstract void TransactionCommit();
 
         /// <summary>
         /// Rollbacks the current transaction.
         /// </summary>
         /// <param name="ex">an exception that caused the rollback</param>
-        protected virtual void TransactionRollback(Exception ex)
-        {
-            if (!this.IsTransactionInProgress) 
-                throw new InvalidOperationException(Properties.Resources.SqlAgentBase_NoTransactionToRollback);
-        }
+        protected abstract void TransactionRollback(Exception ex);
 
         /// <summary>
         /// Fetches data using SQL query token in the SQL repository.
@@ -429,7 +436,16 @@ namespace Apskaita5.DAL.Common
         /// (null or empty array for none)</param>
         /// <returns>a <see cref="LightDataTable">LightDataTable</see> that contains
         /// data returned by the SQL query.</returns>
-        public abstract LightDataTable FetchTable(string token, SqlParam[] parameters);
+        public abstract Task<LightDataTable> FetchTableAsync(string token, SqlParam[] parameters);
+
+        /// <summary>
+        /// Fetches data using SQL query tokens in the SQL repository.
+        /// </summary>
+        /// <param name="queries">a list of queries where the key is a token of the SQL query in the SQL repository
+        /// and the value is a collection of the SQL query parameters (null or empty array for none)</param>
+        /// <returns>an array of <see cref="LightDataTable">LightDataTables</see> that contain
+        /// data returned by the SQL queries.</returns>
+        public abstract Task<LightDataTable[]> FetchTablesAsync(KeyValuePair<string, SqlParam[]>[] queries);
 
         /// <summary>
         /// Fetches data using raw SQL query (parameters should be prefixed by ?).
@@ -439,7 +455,7 @@ namespace Apskaita5.DAL.Common
         /// (null or empty array for none)</param>
         /// <returns>a <see cref="LightDataTable">LightDataTable</see> that contains
         /// data returned by the SQL query.</returns>
-        public abstract LightDataTable FetchTableRaw(string sqlQuery, SqlParam[] parameters);
+        public abstract Task<LightDataTable> FetchTableRawAsync(string sqlQuery, SqlParam[] parameters);
 
         /// <summary>
         /// Fetches the specified fields from the specified database table.
@@ -449,7 +465,7 @@ namespace Apskaita5.DAL.Common
         /// <returns>a <see cref="LightDataTable">LightDataTable</see> that contains
         /// specified fields data in the specified table.</returns>
         /// <remarks>Used to fetch general company data and for SQL migration functionality.</remarks>
-        public abstract LightDataTable FetchTableFields(string table, string[] fields);
+        public abstract Task<LightDataTable> FetchTableFieldsAsync(string table, string[] fields);
 
         /// <summary>
         /// Executes an SQL statement, that inserts a new row, using SQL query token 
@@ -459,7 +475,7 @@ namespace Apskaita5.DAL.Common
         /// <param name="parameters">a collection of the SQL statement parameters 
         /// (null or empty array for none)</param>
         /// <returns>last insert id</returns>
-        public abstract Int64 ExecuteInsert(string insertStatementToken, SqlParam[] parameters);
+        public abstract Task<Int64> ExecuteInsertAsync(string insertStatementToken, SqlParam[] parameters);
 
         /// <summary>
         /// Executes a raw SQL statement, that inserts a new row, and returns last insert id.
@@ -468,7 +484,7 @@ namespace Apskaita5.DAL.Common
         /// <param name="parameters">a collection of the SQL statement parameters 
         /// (null or empty array for none)</param>
         /// <returns>last insert id</returns>
-        public abstract Int64 ExecuteInsertRaw(string insertStatement, SqlParam[] parameters);
+        public abstract Task<Int64> ExecuteInsertRawAsync(string insertStatement, SqlParam[] parameters);
 
         /// <summary>
         /// Executes an SQL statement using SQL query token in the SQL repository 
@@ -478,7 +494,7 @@ namespace Apskaita5.DAL.Common
         /// <param name="parameters">a collection of the SQL query parameters 
         /// (null or empty array for none)</param>
         /// <returns>affected rows count</returns>
-        public abstract int ExecuteCommand(string statementToken, SqlParam[] parameters);
+        public abstract Task<int> ExecuteCommandAsync(string statementToken, SqlParam[] parameters);
 
         /// <summary>
         /// Executes a raw SQL statement and returns affected rows count.
@@ -487,7 +503,7 @@ namespace Apskaita5.DAL.Common
         /// <param name="parameters">a collection of the SQL statement parameters 
         /// (null or empty array for none)</param>
         /// <returns>affected rows count</returns>
-        public abstract int ExecuteCommandRaw(string statement, SqlParam[] parameters);
+        public abstract Task<int> ExecuteCommandRawAsync(string statement, SqlParam[] parameters);
 
         /// <summary>
         /// Executes multiple SQL statements using one database connection but without a transaction.
@@ -495,14 +511,28 @@ namespace Apskaita5.DAL.Common
         /// <param name="statements">a collection of the SQL statements to execute in batch</param>
         /// <remarks>Used when modifying databases and in other cases when transactions are not supported
         /// in order to reuse connection.</remarks>
-        public abstract void ExecuteCommandBatch(string[] statements);
+        public abstract Task ExecuteCommandBatchAsync(string[] statements);
+
+        /// <summary>
+        /// Checks if the database specified exists.
+        /// </summary>
+        /// <param name="databaseName">a name of the database to check</param>
+        /// <returns>True if the database specified exists.</returns>
+        public abstract Task<bool> DatabaseExistsAsync(string databaseName);
+
+        /// <summary>
+        /// Checks if the database is empty, i.e. contains no tables.
+        /// </summary>
+        /// <param name="databaseName">a name of the database to check</param>
+        /// <returns>True if the database contains any tables.</returns>
+        public abstract Task<bool> DatabaseEmptyAsync(string databaseName);
 
 
         /// <summary>
         /// Gets a <see cref="DbSchema">DbSchema</see> instance (a canonical database description) 
         /// for the current database.
         /// </summary>
-        public abstract DbSchema GetDbSchema();
+        public abstract Task<DbSchema> GetDbSchemaAsync();
 
         /// <summary>
         /// Compares the current database definition to the gauge definition definition read from 
@@ -525,12 +555,12 @@ namespace Apskaita5.DAL.Common
         /// <exception cref="FileNotFoundException">The file specified in dbSchemaFolderPath was not found.</exception>
         /// <exception cref="NotSupportedException">dbSchemaFolderPath is in an invalid format.</exception>
         /// <exception cref="SecurityException">The caller does not have the required permission.</exception>
-        public List<DbSchemaError> GetDbSchemaErrors(string dbSchemaFolderPath)
+        public async Task<List<DbSchemaError>> GetDbSchemaErrorsAsync(string dbSchemaFolderPath)
         {
             var gaugeSchema = new DbSchema();
             gaugeSchema.LoadXmlFolder(dbSchemaFolderPath);
-            var actualSchema = this.GetDbSchema();
             if (gaugeSchema.Tables.Count < 1) throw new ArgumentException(Properties.Resources.SqlAgentBase_GaugeSchemaEmpty);
+            var actualSchema = await this.GetDbSchemaAsync();            
             return this.GetDbSchemaErrors(gaugeSchema, actualSchema);
         }
 
@@ -571,14 +601,14 @@ namespace Apskaita5.DAL.Common
         /// <exception cref="FileNotFoundException">The file specified in dbSchemaFolderPath was not found.</exception>
         /// <exception cref="NotSupportedException">dbSchemaFolderPath is in an invalid format.</exception>
         /// <exception cref="SecurityException">The caller does not have the required permission.</exception>
-        public void CreateDatabase(string databaseName, string dbSchemaFolderPath)
+        public async Task CreateDatabaseAsync(string databaseName, string dbSchemaFolderPath)
         {
             if (databaseName.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(databaseName));
             if (IsTransactionInProgress)
                 throw new InvalidOperationException(Properties.Resources.SqlAgentBase_CannotCreateDatabase);
             var dbSchema = new DbSchema();
             dbSchema.LoadXmlFolder(dbSchemaFolderPath);
-            CreateDatabase(databaseName, dbSchema);
+            await CreateDatabaseAsync(databaseName, dbSchema);
         }
 
         /// <summary>
@@ -588,13 +618,13 @@ namespace Apskaita5.DAL.Common
         /// <param name="dbSchema">a DbSchema to use for the new database</param>
         /// <remarks>After creating a new database the <see cref="CurrentDatabase">CurrentDatabase</see>
         /// property should be set to the new database name.</remarks>
-        protected abstract void CreateDatabase(string databaseName, DbSchema dbSchema);
+        protected abstract Task CreateDatabaseAsync(string databaseName, DbSchema dbSchema);
 
         /// <summary>
         /// Drops (deletes) the database specified.
         /// </summary>
         /// <param name="databaseName">the name of the database to drop</param>
-        public abstract void DropDatabase(string databaseName);
+        public abstract Task DropDatabaseAsync(string databaseName);
 
 
         /// <summary>
@@ -619,7 +649,7 @@ namespace Apskaita5.DAL.Common
             if (worker != null)
                 worker.ReportProgress(0, Properties.Resources.SqlAgentBase_FetchingDatabaseSchema);
 
-            if (schemaToUse == null) schemaToUse = this.GetDbSchema();
+            if (schemaToUse == null) schemaToUse = GetDbSchemaAsync().Result;
 
             if (worker != null && worker.CancellationPending)
             {
@@ -630,7 +660,7 @@ namespace Apskaita5.DAL.Common
             if (worker != null)
                 worker.ReportProgress(0, Properties.Resources.SqlAgentBase_CreatingCloneDatabase);
 
-            cloneSqlAgent.CreateDatabase(cloneDatabaseName, schemaToUse);
+            cloneSqlAgent.CreateDatabaseAsync(cloneDatabaseName, schemaToUse).Wait();
 
             if (worker != null && worker.CancellationPending)
             {
@@ -641,9 +671,9 @@ namespace Apskaita5.DAL.Common
             try
             {
 
-                cloneSqlAgent.TransactionBegin();
+                cloneSqlAgent.TransactionBeginAsync().Wait();
 
-                cloneSqlAgent.DisableForeignKeysForCurrentTransaction();
+                cloneSqlAgent.DisableForeignKeysForCurrentTransactionAsync().Wait();
 
                 this.CopyData(schemaToUse, cloneSqlAgent, worker);
 
@@ -678,7 +708,7 @@ namespace Apskaita5.DAL.Common
         /// Disables foreign key checks for the current transaction.
         /// </summary>
         /// <remarks>Required for <see cref="CloneDatabase">CloneDatabase</see> infrastructure.</remarks>
-        protected abstract void DisableForeignKeysForCurrentTransaction();
+        protected abstract Task DisableForeignKeysForCurrentTransactionAsync();
 
         /// <summary>
         /// Invokes protected <see cref="InsertTableData">InsertTableData</see>
@@ -692,10 +722,10 @@ namespace Apskaita5.DAL.Common
         /// <remarks>Required for <see cref="CloneDatabase">CloneDatabase</see> infrastructure.
         /// The insert is performed using a transaction that is already initiated by the 
         /// <see cref="CloneDatabase">CloneDatabase</see>.</remarks>
-        protected static void CallInsertTableData(SqlAgentBase target, DbTableSchema table, 
+        protected static async Task CallInsertTableDataAsync(SqlAgentBase target, DbTableSchema table, 
             IDataReader reader)
         {
-            target.InsertTableData(table, reader);
+            await target.InsertTableDataAsync(table, reader);
         }
 
         /// <summary>
@@ -706,7 +736,7 @@ namespace Apskaita5.DAL.Common
         /// <remarks>Required for <see cref="CloneDatabase">CloneDatabase</see> infrastructure.
         /// The insert is performed using a transaction that is already initiated by the 
         /// <see cref="CloneDatabase">CloneDatabase</see>.</remarks>
-        protected abstract void InsertTableData(DbTableSchema table, IDataReader reader);
+        protected abstract Task InsertTableDataAsync(DbTableSchema table, IDataReader reader);
 
 
         /// <summary>

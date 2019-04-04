@@ -136,16 +136,16 @@ namespace Apskaita5.Common
         {
 
             if ((0.0).GreaterThan(originalCurrencyRate))
-                throw new ArgumentException(string.Format(Apskaita5.Common.Properties.Resources.ParameterCannotBeNegative, 
+                throw new ArgumentException(string.Format(Properties.Resources.ParameterCannotBeNegative, 
                     nameof(originalCurrencyRate)), nameof(originalCurrencyRate));
             if ((0.0).GreaterThan(targetCurrencyRate))
-                throw new ArgumentException(string.Format(Apskaita5.Common.Properties.Resources.ParameterCannotBeNegative,
+                throw new ArgumentException(string.Format(Properties.Resources.ParameterCannotBeNegative,
                     nameof(targetCurrencyRate)), nameof(targetCurrencyRate));
             if (amountSignificantDigits < 0)
-                throw new ArgumentException(string.Format(Apskaita5.Common.Properties.Resources.ParameterCannotBeNegative,
+                throw new ArgumentException(string.Format(Properties.Resources.ParameterCannotBeNegative,
                     nameof(amountSignificantDigits)), nameof(amountSignificantDigits));
             if (currencyRateSignificantDigits < 0)
-                throw new ArgumentException(string.Format(Apskaita5.Common.Properties.Resources.ParameterCannotBeNegative,
+                throw new ArgumentException(string.Format(Properties.Resources.ParameterCannotBeNegative,
                     nameof(currencyRateSignificantDigits)), nameof(currencyRateSignificantDigits));
 
             // zero remains zero in any currency
@@ -215,16 +215,16 @@ namespace Apskaita5.Common
         {
 
             if (originalCurrencyRate < 0.0m)
-                throw new ArgumentException(string.Format(Apskaita5.Common.Properties.Resources.ParameterCannotBeNegative,
+                throw new ArgumentException(string.Format(Properties.Resources.ParameterCannotBeNegative,
                     nameof(originalCurrencyRate)), nameof(originalCurrencyRate));
             if (targetCurrencyRate < 0.0m)
-                throw new ArgumentException(string.Format(Apskaita5.Common.Properties.Resources.ParameterCannotBeNegative,
+                throw new ArgumentException(string.Format(Properties.Resources.ParameterCannotBeNegative,
                     nameof(targetCurrencyRate)), nameof(targetCurrencyRate));
             if (amountSignificantDigits < 0)
-                throw new ArgumentException(string.Format(Apskaita5.Common.Properties.Resources.ParameterCannotBeNegative,
+                throw new ArgumentException(string.Format(Properties.Resources.ParameterCannotBeNegative,
                     nameof(amountSignificantDigits)), nameof(amountSignificantDigits));
             if (currencyRateSignificantDigits < 0)
-                throw new ArgumentException(string.Format(Apskaita5.Common.Properties.Resources.ParameterCannotBeNegative,
+                throw new ArgumentException(string.Format(Properties.Resources.ParameterCannotBeNegative,
                     nameof(currencyRateSignificantDigits)), nameof(currencyRateSignificantDigits));
             
             // zero remains zero in any currency
@@ -361,13 +361,13 @@ namespace Apskaita5.Common
         {
 
             if ((0.0).GreaterThan(currencyRate))
-                throw new ArgumentException(string.Format(Apskaita5.Common.Properties.Resources.ParameterCannotBeNegative,
+                throw new ArgumentException(string.Format(Properties.Resources.ParameterCannotBeNegative,
                     nameof(currencyRate)), nameof(currencyRate));
             if (amountSignificantDigits < 0)
-                throw new ArgumentException(string.Format(Apskaita5.Common.Properties.Resources.ParameterCannotBeNegative,
+                throw new ArgumentException(string.Format(Properties.Resources.ParameterCannotBeNegative,
                     nameof(amountSignificantDigits)), nameof(amountSignificantDigits));
             if (currencyRateSignificantDigits < 0)
-                throw new ArgumentException(string.Format(Apskaita5.Common.Properties.Resources.ParameterCannotBeNegative,
+                throw new ArgumentException(string.Format(Properties.Resources.ParameterCannotBeNegative,
                     nameof(currencyRateSignificantDigits)), nameof(currencyRateSignificantDigits));
             
             if (IsBaseCurrency(targetCurrency, baseCurrency))
@@ -405,13 +405,13 @@ namespace Apskaita5.Common
         {
 
             if (currencyRate < 0.0m)
-                throw new ArgumentException(string.Format(Apskaita5.Common.Properties.Resources.ParameterCannotBeNegative,
+                throw new ArgumentException(string.Format(Properties.Resources.ParameterCannotBeNegative,
                     nameof(currencyRate)), nameof(currencyRate));
             if (amountSignificantDigits < 0)
-                throw new ArgumentException(string.Format(Apskaita5.Common.Properties.Resources.ParameterCannotBeNegative,
+                throw new ArgumentException(string.Format(Properties.Resources.ParameterCannotBeNegative,
                     nameof(amountSignificantDigits)), nameof(amountSignificantDigits));
             if (currencyRateSignificantDigits < 0)
-                throw new ArgumentException(string.Format(Apskaita5.Common.Properties.Resources.ParameterCannotBeNegative,
+                throw new ArgumentException(string.Format(Properties.Resources.ParameterCannotBeNegative,
                     nameof(currencyRateSignificantDigits)), nameof(currencyRateSignificantDigits));
             
             if (IsBaseCurrency(targetCurrency, baseCurrency))

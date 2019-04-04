@@ -64,6 +64,12 @@
     <Compile Include="CloneDatabaseProgressForm.designer.cs">
       <DependentUpon>CloneDatabaseProgressForm.cs</DependentUpon>
     </Compile>
+    <Compile Include="DbSchemaErrorsForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="DbSchemaErrorsForm.Designer.cs">
+      <DependentUpon>DbSchemaErrorsForm.cs</DependentUpon>
+    </Compile>
     <Compile Include="DbSchemaForm.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -119,6 +125,9 @@
     <EmbeddedResource Include="CloneDatabaseProgressForm.resx">
       <DependentUpon>CloneDatabaseProgressForm.cs</DependentUpon>
     </EmbeddedResource>
+    <EmbeddedResource Include="DbSchemaErrorsForm.resx">
+      <DependentUpon>DbSchemaErrorsForm.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="DbSchemaForm.resx">
       <DependentUpon>DbSchemaForm.cs</DependentUpon>
     </EmbeddedResource>
@@ -150,6 +159,7 @@
     <EmbeddedResource Include="XsdValidationForm.resx">
       <DependentUpon>XsdValidationForm.cs</DependentUpon>
     </EmbeddedResource>
+    <None Include="Properties\DataSources\Apskaita5.DAL.Common.ICacheProvider.datasource" />
     <None Include="Properties\Settings.settings">
       <Generator>SettingsSingleFileGenerator</Generator>
       <LastGenOutput>Settings.Designer.cs</LastGenOutput>

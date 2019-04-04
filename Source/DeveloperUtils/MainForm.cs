@@ -254,7 +254,16 @@ namespace DeveloperUtils
             childForm.Show();
         }
 
-        
-        
+        private void checkStructureErrorsToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (_agent == null)
+            {
+                MessageBox.Show("No SQL server connected.", "", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+            Form childForm = new DbSchemaErrorsForm(_agent);
+            childForm.MdiParent = this;
+            childForm.Show();
+        }
     }
 }

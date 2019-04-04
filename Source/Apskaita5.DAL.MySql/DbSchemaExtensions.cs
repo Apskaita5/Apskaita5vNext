@@ -76,15 +76,20 @@ namespace Apskaita5.DAL.MySql
             if (field1 == null) throw new ArgumentNullException("field1");
             if (field2 == null) throw new ArgumentNullException("field2");
 
+
             if (field1.Name.Trim().ToLower() != field2.Name.Trim().ToLower())
                 throw new ArgumentException("Cannot compare columns with diferent names.");
 
             if (field1.IndexType != field2.IndexType)
                 return false;
-            if (field1.IndexType == DbIndexType.ForeignKey && (field1.RefField.Trim().ToLower()
-                != field2.RefField.Trim().ToLower() || field1.RefTable.Trim().ToLower()
-                != field2.RefTable.Trim().ToLower() || field1.OnDeleteForeignKey != field2.OnDeleteForeignKey
-                || field1.OnUpdateForeignKey != field2.OnUpdateForeignKey))
+
+            if (field1.IndexType != DbIndexType.ForeignKey)
+                return true;
+
+            if (field1.RefField.Trim().ToLower() != field2.RefField.Trim().ToLower() || 
+                field1.RefTable.Trim().ToLower() != field2.RefTable.Trim().ToLower() || 
+                field1.OnDeleteForeignKey != field2.OnDeleteForeignKey || 
+                field1.OnUpdateForeignKey != field2.OnUpdateForeignKey)
                 return false;
             
             return true;

@@ -6,6 +6,8 @@ using System.Linq;
 using System.Text;
 using System.Data.SQLite;
 using Apskaita5.DAL.Common;
+using System.Threading.Tasks;
+using System.Threading;
 
 namespace Apskaita5.DAL.Sqlite
 {
@@ -18,10 +20,9 @@ namespace Apskaita5.DAL.Sqlite
         private const string AgentSqlRepositoryFileNamePrefix = "sqlite_";
         private const string AgentWildcart = "%";
         private const string ParamPrefix = "$";
-
-
-        private SQLiteTransaction _currentTransaction = null;
-
+        
+        private static AsyncLocal<SQLiteTransaction> asyncTransaction = new AsyncLocal<SQLiteTransaction>();
+        private SQLiteTransaction instanceTransaction = null;
 
 
         /// <summary>
@@ -67,12 +68,26 @@ namespace Apskaita5.DAL.Sqlite
             get { return AgentWildcart; }
         }
 
+        private SQLiteTransaction CurrentTransaction
+        {
+            get
+            {
+                if (UseTransactionPerInstance) return instanceTransaction;
+                return asyncTransaction.Value;
+            }
+            set
+            {
+                if (UseTransactionPerInstance) instanceTransaction = value;
+                asyncTransaction.Value = value;
+            }
+        }
+
         /// <summary>
         /// Gets a value indicationg whether an SQL transation is in progress.
         /// </summary>
         public override bool IsTransactionInProgress
         {
-            get { return _currentTransaction != null; }
+            get { return CurrentTransaction != null; }
         }
 
 
@@ -99,16 +114,15 @@ namespace Apskaita5.DAL.Sqlite
         protected override SqlAgentBase GetCopyInt()
         {
             var sqlTokensUsed = (this.SqlRepositoryPath != null && !string.IsNullOrEmpty(this.SqlRepositoryPath.Trim()));
-            return new SqliteAgent(_baseConnectionString, this.SqlRepositoryPath, sqlTokensUsed)
-                {QueryTimeOut = this.QueryTimeOut};
+            return new SqliteAgent(_baseConnectionString, this.SqlRepositoryPath, sqlTokensUsed);
         }
 
         /// <summary>
         /// Tries to open connection. If fails, throws an exception.
         /// </summary>
-        public override void TestConnection()
+        public override async Task TestConnectionAsync()
         {
-            using (var result = OpenConnection())
+            using (var result = await OpenConnectionAsync())
             {
                 result.Close();    
             }
@@ -118,11 +132,10 @@ namespace Apskaita5.DAL.Sqlite
         /// Starts a new transaction.
         /// </summary>
         /// <exception cref="InvalidOperationException">if transaction is already in progress</exception>
-        protected override void TransactionBegin()
+        protected override async Task TransactionBeginAsync()
         {
-            base.TransactionBegin(); // check the validity of the operation
-            var result = OpenConnection();
-            _currentTransaction = result.BeginTransaction();
+            var result = await OpenConnectionAsync();
+            CurrentTransaction = result.BeginTransaction();
         }
 
         /// <summary>
@@ -132,18 +145,16 @@ namespace Apskaita5.DAL.Sqlite
         protected override void TransactionCommit()
         {
 
-            base.TransactionCommit(); // check the validity of the operation
-            
             try
             {
-                _currentTransaction.Commit();
+                CurrentTransaction.Commit();
             }
             catch (Exception ex)
             {
                 
                 try
                 {
-                    _currentTransaction.Rollback();
+                    CurrentTransaction.Rollback();
                 }
                 catch (Exception e)
                 {
@@ -168,11 +179,9 @@ namespace Apskaita5.DAL.Sqlite
         protected override void TransactionRollback(Exception ex)
         {
             
-            base.TransactionRollback(ex); // check the validity of the operation
-
             try
             {
-                _currentTransaction.Rollback();
+                CurrentTransaction.Rollback();
             }
             catch (Exception e)
             {
@@ -204,18 +213,65 @@ namespace Apskaita5.DAL.Sqlite
         /// (null or empty array for none)</param>
         /// <returns>a <see cref="LightDataTable">LightDataTable</see> that contains
         /// data returned by the SQL query.</returns>
-        public override LightDataTable FetchTable(string token, SqlParam[] parameters)
+        public override async Task<LightDataTable> FetchTableAsync(string token, SqlParam[] parameters)
         {
 
             if (token == null || string.IsNullOrEmpty(token.Trim())) throw new ArgumentNullException("token");
 
             if (this.IsTransactionInProgress)
-                return ExecuteCommandInt<LightDataTable>(null, _currentTransaction, 
+                return await ExecuteCommandIntAsync<LightDataTable>(null, CurrentTransaction, 
                     GetSqlQuery(token), parameters);
 
-            using (var conn = OpenConnection())
+            using (var conn = await OpenConnectionAsync())
             {
-                return ExecuteCommandInt<LightDataTable>(conn, null, GetSqlQuery(token), parameters);
+                return await ExecuteCommandIntAsync<LightDataTable>(conn, null, GetSqlQuery(token), parameters);
+            }
+
+        }
+
+        /// <summary>
+        /// Fetches data using SQL query tokens in the SQL repository.
+        /// </summary>
+        /// <param name="queries">a list of queries where the key is a token of the SQL query in the SQL repository
+        /// and the value is a collection of the SQL query parameters (null or empty array for none)</param>
+        /// <returns>an array of <see cref="LightDataTable">LightDataTables</see> that contain
+        /// data returned by the SQL queries.</returns>
+        public override async Task<LightDataTable[]> FetchTablesAsync(KeyValuePair<string, SqlParam[]>[] queries)
+        {
+
+            if (queries == null || queries.Length < 1) throw new ArgumentNullException(nameof(queries));
+            foreach (var query in queries)
+            {
+                if (query.Key == null || query.Key.Trim().Length < 1)
+                    throw new ArgumentException("Query token cannot be empty.", nameof(queries));
+            }
+
+            var tasks = new List<Task<LightDataTable>>();
+
+            if (this.IsTransactionInProgress)
+            {
+
+                foreach (var query in queries)
+                {
+                    tasks.Add(ExecuteCommandIntAsync<LightDataTable>(null, CurrentTransaction,
+                        GetSqlQuery(query.Key), query.Value));
+                }
+
+                return await Task.WhenAll(tasks);
+
+            }
+            else
+            {
+                using (var conn = await OpenConnectionAsync())
+                {
+                    foreach (var query in queries)
+                    {
+                        tasks.Add(ExecuteCommandIntAsync<LightDataTable>(conn, null,
+                            GetSqlQuery(query.Key), query.Value));
+                    }
+
+                    return await Task.WhenAll(tasks);
+                }
             }
 
         }
@@ -228,19 +284,19 @@ namespace Apskaita5.DAL.Sqlite
         /// (null or empty array for none)</param>
         /// <returns>a <see cref="LightDataTable">LightDataTable</see> that contains
         /// data returned by the SQL query.</returns>
-        public override LightDataTable FetchTableRaw(string sqlQuery, SqlParam[] parameters)
+        public override async Task<LightDataTable> FetchTableRawAsync(string sqlQuery, SqlParam[] parameters)
         {
 
             if (sqlQuery == null || string.IsNullOrEmpty(sqlQuery.Trim())) 
                 throw new ArgumentNullException("sqlQuery");
 
             if (this.IsTransactionInProgress)
-                return ExecuteCommandInt<LightDataTable>(null, _currentTransaction, 
+                return await ExecuteCommandIntAsync<LightDataTable>(null, CurrentTransaction, 
                     ReplaceParamsInRawQuery(sqlQuery, parameters), parameters);
 
-            using (var conn = OpenConnection())
+            using (var conn = await OpenConnectionAsync())
             {
-                return ExecuteCommandInt<LightDataTable>(conn, null, 
+                return await ExecuteCommandIntAsync<LightDataTable>(conn, null, 
                     ReplaceParamsInRawQuery(sqlQuery, parameters), parameters);
             }
 
@@ -256,7 +312,7 @@ namespace Apskaita5.DAL.Sqlite
         /// <remarks>Used to fetch general company data.</remarks>
         /// <exception cref="ArgumentNullException">Parameters table or fields are not specified.</exception>
         /// <exception cref="ArgumentException">Fields (every field in the fields array) cannot be empty.</exception>
-        public override LightDataTable FetchTableFields(string table, string[] fields)
+        public override async Task<LightDataTable> FetchTableFieldsAsync(string table, string[] fields)
         {
             
             if (table == null || string.IsNullOrEmpty(table.Trim())) throw new ArgumentNullException("table");
@@ -266,7 +322,7 @@ namespace Apskaita5.DAL.Sqlite
 
             var fieldsQuery = string.Join(", ", fields.Select(field => field.Trim().ToLower()).ToArray());
 
-            return this.FetchTableRaw(string.Format("SELECT {0} FROM {1};",
+            return await FetchTableRawAsync(string.Format("SELECT {0} FROM {1};",
                 fieldsQuery, table.Trim().ToLower()), null);
 
         }
@@ -279,19 +335,19 @@ namespace Apskaita5.DAL.Sqlite
         /// <param name="parameters">a collection of the SQL statement parameters 
         /// (null or empty array for none)</param>
         /// <returns>last insert id</returns>
-        public override long ExecuteInsert(string insertStatementToken, SqlParam[] parameters)
+        public override async Task<long> ExecuteInsertAsync(string insertStatementToken, SqlParam[] parameters)
         {
 
             if (insertStatementToken == null || string.IsNullOrEmpty(insertStatementToken.Trim())) 
                 throw new ArgumentNullException("insertStatementToken");
 
             if (this.IsTransactionInProgress)
-                return ExecuteCommandInt<long>(null, _currentTransaction, 
+                return await ExecuteCommandIntAsync<long>(null, CurrentTransaction, 
                     GetSqlQuery(insertStatementToken), parameters);
 
-            using (var conn = OpenConnection())
+            using (var conn = await OpenConnectionAsync())
             {
-                return ExecuteCommandInt<long>(conn, null, GetSqlQuery(insertStatementToken), parameters);
+                return await ExecuteCommandIntAsync<long>(conn, null, GetSqlQuery(insertStatementToken), parameters);
             }
 
         }
@@ -303,19 +359,19 @@ namespace Apskaita5.DAL.Sqlite
         /// <param name="parameters">a collection of the SQL statement parameters 
         /// (null or empty array for none)</param>
         /// <returns>last insert id</returns>
-        public override long ExecuteInsertRaw(string insertStatement, SqlParam[] parameters)
+        public override async Task<long> ExecuteInsertRawAsync(string insertStatement, SqlParam[] parameters)
         {
 
             if (insertStatement == null || string.IsNullOrEmpty(insertStatement.Trim())) 
                 throw new ArgumentNullException("insertStatement");
 
             if (this.IsTransactionInProgress)
-                return ExecuteCommandInt<long>(null, _currentTransaction, 
+                return await ExecuteCommandIntAsync<long>(null, CurrentTransaction, 
                     ReplaceParamsInRawQuery(insertStatement, parameters), parameters);
 
-            using (var conn = OpenConnection())
+            using (var conn = await OpenConnectionAsync())
             {
-                return ExecuteCommandInt<long>(conn, null, 
+                return await ExecuteCommandIntAsync<long>(conn, null, 
                     ReplaceParamsInRawQuery(insertStatement, parameters), parameters);
 
             }
@@ -330,18 +386,18 @@ namespace Apskaita5.DAL.Sqlite
         /// <param name="parameters">a collection of the SQL query parameters 
         /// (null or empty array for none)</param>
         /// <returns>affected rows count</returns>
-        public override int ExecuteCommand(string statementToken, SqlParam[] parameters)
+        public override async Task<int> ExecuteCommandAsync(string statementToken, SqlParam[] parameters)
         {
 
             if (statementToken == null || string.IsNullOrEmpty(statementToken.Trim())) 
                 throw new ArgumentNullException("statementToken");
 
             if (this.IsTransactionInProgress)
-                return ExecuteCommandInt<int>(null, _currentTransaction, GetSqlQuery(statementToken), parameters);
+                return await ExecuteCommandIntAsync<int>(null, CurrentTransaction, GetSqlQuery(statementToken), parameters);
 
-            using (var conn = OpenConnection())
+            using (var conn = await OpenConnectionAsync())
             {
-                return ExecuteCommandInt<int>(conn, null, GetSqlQuery(statementToken), parameters);
+                return await ExecuteCommandIntAsync<int>(conn, null, GetSqlQuery(statementToken), parameters);
             }
 
         }
@@ -353,19 +409,19 @@ namespace Apskaita5.DAL.Sqlite
         /// <param name="parameters">a collection of the SQL statement parameters 
         /// (null or empty array for none)</param>
         /// <returns>affected rows count</returns>
-        public override int ExecuteCommandRaw(string statement, SqlParam[] parameters)
+        public override async Task<int> ExecuteCommandRawAsync(string statement, SqlParam[] parameters)
         {
 
             if (statement == null || string.IsNullOrEmpty(statement.Trim())) 
                 throw new ArgumentNullException("statement");
 
             if (this.IsTransactionInProgress)
-                return ExecuteCommandInt<int>(null, _currentTransaction, 
+                return await ExecuteCommandIntAsync<int>(null, CurrentTransaction, 
                     ReplaceParamsInRawQuery(statement, parameters), parameters);
 
-            using (var conn = OpenConnection())
+            using (var conn = await OpenConnectionAsync())
             {
-                return ExecuteCommandInt<int>(conn, null, ReplaceParamsInRawQuery(statement, parameters), parameters);
+                return await ExecuteCommandIntAsync<int>(conn, null, ReplaceParamsInRawQuery(statement, parameters), parameters);
             }
 
         }
@@ -381,7 +437,7 @@ namespace Apskaita5.DAL.Sqlite
         /// <exception cref="ArgumentNullException">Parameter statements is not specified.</exception>
         /// <exception cref="ArgumentException">At least one statement should be non empty.</exception>
         /// <exception cref="InvalidOperationException">Cannot execute batch while a transaction is in progress.</exception>
-        public override void ExecuteCommandBatch(string[] statements)
+        public override async Task ExecuteCommandBatchAsync(string[] statements)
         {
             
             if (statements == null || statements.Length < 1)
@@ -393,7 +449,7 @@ namespace Apskaita5.DAL.Sqlite
             if (this.IsTransactionInProgress)
                 throw new InvalidOperationException("Cannot execute batch while a transaction is in progress.");
 
-            using (var conn = OpenConnection())
+            using (var conn = await OpenConnectionAsync())
             {
                 try
                 {
@@ -408,7 +464,7 @@ namespace Apskaita5.DAL.Sqlite
                             if (statement != null && !string.IsNullOrEmpty(statement.Trim()))
                             {
                                 command.CommandText = statement;
-                                command.ExecuteNonQuery();
+                                await command.ExecuteNonQueryAsync();
                             }
                         }
 
@@ -428,6 +484,31 @@ namespace Apskaita5.DAL.Sqlite
 
         }
 
+        /// <summary>
+        /// Checks if the database specified exists.
+        /// </summary>
+        /// <param name="databaseName">a name of the database to check</param>
+        /// <returns>True if the database specified exists.</returns>
+        public override async Task<bool> DatabaseExistsAsync(string databaseName)
+        {
+            return await Task.FromResult(true); // because it will be created on open conn
+        }
+
+        /// <summary>
+        /// Checks if the database is empty, i.e. contains no tables.
+        /// </summary>
+        /// <param name="databaseName">a name of the database to check (not used in SQLite implementation)</param>
+        /// <returns>True if the database contains any tables.</returns>
+        public override async Task<bool> DatabaseEmptyAsync(string databaseName)
+        {
+            using (var conn = await OpenConnectionAsync())
+            {
+                var table = await ExecuteCommandIntAsync<LightDataTable>(conn, null,
+                    "SELECT name, sql FROM sqlite_master WHERE type='table' AND NOT name LIKE 'sqlite_%';", null);
+                return (table.Rows.Count < 1);
+            }                   
+        }
+
 
         /// <summary>
         /// Gets a <see cref="DbSchema">DbSchema</see> instance (a canonical database description) 
@@ -435,25 +516,24 @@ namespace Apskaita5.DAL.Sqlite
         /// </summary>
         /// <exception cref="InvalidOperationException">Cannot get schema while a transaction is in progress.</exception>
         /// <exception cref="InvalidOperationException">Database is not set, cannot get schema.</exception>
-        public override DbSchema GetDbSchema()
+        public override async Task<DbSchema> GetDbSchemaAsync()
         {
 
             if (_currentDatabase == null || string.IsNullOrEmpty(_currentDatabase))
                 throw new InvalidOperationException("Database is not set, cannot get schema.");
-            if (_currentTransaction != null)
-                throw new InvalidOperationException("Cannot get schema while a transaction is in progress.");
+            if (IsTransactionInProgress) throw new InvalidOperationException("Cannot get schema while a transaction is in progress.");
 
             var result = new DbSchema {Tables = new List<DbTableSchema>()};
 
-            var indexData = this.FetchTableRaw(
+            var indexData = await FetchTableRawAsync(
                 "SELECT name, tbl_name, sql FROM sqlite_master WHERE type='index' AND NOT sql IS NULL;", null);
 
-            var tablesData = this.FetchTableRaw(
+            var tablesData = await FetchTableRawAsync(
                 "SELECT name, sql FROM sqlite_master WHERE type='table' AND NOT name LIKE 'sqlite_%';", null);
 
             foreach (var row in tablesData.Rows)
             {
-                result.Tables.Add(this.GetDbTableSchema(row, indexData));
+                result.Tables.Add(await GetDbTableSchemaAsync(row, indexData));
             }
             
             return result;
@@ -471,8 +551,7 @@ namespace Apskaita5.DAL.Sqlite
             
             if (gaugeSchema == null) throw new ArgumentNullException("gaugeSchema");
             if (actualSchema == null) throw new ArgumentNullException("actualSchema");
-            if (_currentTransaction != null)
-                throw new InvalidOperationException("Cannot get schema errors while a transaction is in progress.");
+            if (IsTransactionInProgress) throw new InvalidOperationException("Cannot get schema errors while a transaction is in progress.");
             
             var result = new List<DbSchemaError>();
 
@@ -689,7 +768,7 @@ namespace Apskaita5.DAL.Sqlite
         /// <remarks>After creating a new database the <see cref="SqlAgentBase.CurrentDatabase">CurrentDatabase</see>
         /// property should be set to the new database name.</remarks>
         /// <exception cref="ArgumentException">Database schema should contain at least one table.</exception>
-        protected override void CreateDatabase(string databaseName, DbSchema dbSchema)
+        protected override async Task CreateDatabaseAsync(string databaseName, DbSchema dbSchema)
         {
 
             if (dbSchema.Tables.Count <1) 
@@ -709,7 +788,7 @@ namespace Apskaita5.DAL.Sqlite
 
                 _currentDatabase = databaseName; // SQLite database will be created on connection creation
 
-                this.ExecuteCommandBatch(script.ToArray());
+                await ExecuteCommandBatchAsync(script.ToArray());
 
             }
             catch (Exception)
@@ -738,13 +817,17 @@ namespace Apskaita5.DAL.Sqlite
         /// paths must be less than 248 characters, and file names must be less than 260 characters.</exception>
         /// <exception cref="UnauthorizedAccessException">The caller does not have the required permission
         /// or the path specified a read-only file.</exception>
-        public override void DropDatabase(string databaseName)
+        public override async Task DropDatabaseAsync(string databaseName)
         {
             if (databaseName == null || string.IsNullOrEmpty(databaseName.Trim())) 
                 throw new ArgumentNullException("databaseName");
             if (IsTransactionInProgress)
                 throw new InvalidOperationException("Cannot drop database while transaction is in progress.");
-            File.Delete(databaseName);
+            using (var stream = new FileStream(databaseName, FileMode.Open, FileAccess.Read, FileShare.None,
+                4096, FileOptions.DeleteOnClose | FileOptions.Asynchronous))
+            {
+                await stream.FlushAsync();
+            }
         }
 
 
@@ -761,7 +844,7 @@ namespace Apskaita5.DAL.Sqlite
             System.ComponentModel.BackgroundWorker worker)
         {
 
-            using (var conn = OpenConnection())
+            using (var conn = OpenConnectionAsync().Result)
             {
                 try
                 {
@@ -788,7 +871,7 @@ namespace Apskaita5.DAL.Sqlite
 
                             using (IDataReader reader = command.ExecuteReader())
                             {
-                                CallInsertTableData(targetSqlAgent, table, reader);
+                                CallInsertTableDataAsync(targetSqlAgent, table, reader).Wait();
                             }
 
                             if (worker != null && worker.CancellationPending)
@@ -819,9 +902,9 @@ namespace Apskaita5.DAL.Sqlite
         /// Disables foreign key checks for the current transaction.
         /// </summary>
         /// <remarks>Required for <see cref="SqlAgentBase.CloneDatabase">CloneDatabase</see> infrastructure.</remarks>
-        protected override void DisableForeignKeysForCurrentTransaction()
+        protected override async Task DisableForeignKeysForCurrentTransactionAsync()
         {
-            ExecuteCommandInt<int>(null, _currentTransaction, "PRAGMA foreign_keys = OFF;", null);
+            await ExecuteCommandIntAsync<int>(null, CurrentTransaction, "PRAGMA foreign_keys = OFF;", null);
         }
 
         /// <summary>
@@ -832,7 +915,7 @@ namespace Apskaita5.DAL.Sqlite
         /// <remarks>Required for <see cref="SqlAgentBase.CloneDatabase">CloneDatabase</see> infrastructure.
         /// The insert is performed using a transaction that is already initiated by the 
         /// <see cref="SqlAgentBase.CloneDatabase">CloneDatabase</see>.</remarks>
-        protected override void InsertTableData(DbTableSchema table, IDataReader reader)
+        protected override async Task InsertTableDataAsync(DbTableSchema table, IDataReader reader)
         {
 
             var fields = table.Fields.Select(field => field.Name.Trim().ToLower()).ToList();
@@ -857,14 +940,14 @@ namespace Apskaita5.DAL.Sqlite
                 {
                     paramValues.Add(new SqlParam(paramNames[i], reader.GetValue(i)));
                 }
-                this.ExecuteCommandInt<int>(null, _currentTransaction, insertStatement, paramValues.ToArray());
+                await ExecuteCommandIntAsync<int>(null, CurrentTransaction, insertStatement, paramValues.ToArray());
             }
 
         }
 
 
 
-        private SQLiteConnection OpenConnection()
+        private async Task<SQLiteConnection> OpenConnectionAsync()
         {
 
             if (_currentDatabase == null || string.IsNullOrEmpty(_currentDatabase.Trim()))
@@ -883,7 +966,7 @@ namespace Apskaita5.DAL.Sqlite
             try
             {
                 
-                result.Open();
+                await result.OpenAsync();
 
                 // foreign keys are disabled by default in SQLite
                 using (var command = new SQLiteCommand())
@@ -956,23 +1039,23 @@ namespace Apskaita5.DAL.Sqlite
         private void CleanUpTransaction()
         {
 
-            if (_currentTransaction == null) return;
+            if (CurrentTransaction == null) return;
 
-            if (_currentTransaction.Connection != null)
+            if (CurrentTransaction.Connection != null)
             {
 
-                if (_currentTransaction.Connection.State == ConnectionState.Open)
+                if (CurrentTransaction.Connection.State == ConnectionState.Open)
                 {
                     try
                     {
-                        _currentTransaction.Connection.Close();
+                        CurrentTransaction.Connection.Close();
                     }
                     catch (Exception){}
                 }
 
                 try
                 {
-                    _currentTransaction.Connection.Dispose();
+                    CurrentTransaction.Connection.Dispose();
                 }
                 catch (Exception) { }
 
@@ -980,11 +1063,11 @@ namespace Apskaita5.DAL.Sqlite
 
             try
             {
-                _currentTransaction.Dispose();
+                CurrentTransaction.Dispose();
             }
             catch (Exception) { }
 
-            _currentTransaction = null;
+            CurrentTransaction = null;
 
         }
 
@@ -1000,7 +1083,13 @@ namespace Apskaita5.DAL.Sqlite
             {
                 if (!parameter.ReplaceInQuery)
                 {
-                    command.Parameters.AddWithValue(ParamPrefix + parameter.Name.Trim(), parameter.Value);
+                    var value = parameter.Value;
+                    if (parameter.Value != null && BooleanStoredAsTinyInt && parameter.Value.GetType() == typeof(bool))
+                    {
+                        if ((bool)value) value = 1;
+                        else value = 0;
+                    }
+                    command.Parameters.AddWithValue(ParamPrefix + parameter.Name.Trim(), value);
                 }
             }
 
@@ -1039,7 +1128,7 @@ namespace Apskaita5.DAL.Sqlite
 
         }
 
-        private T ExecuteCommandInt<T>(SQLiteConnection connection, SQLiteTransaction transaction,
+        private async Task<T> ExecuteCommandIntAsync<T>(SQLiteConnection connection, SQLiteTransaction transaction,
             string sqlStatement, SqlParam[] parameters)
         {
 
@@ -1076,16 +1165,20 @@ namespace Apskaita5.DAL.Sqlite
 
                     AddParams(command, parameters);
 
-                    if (typeof (T) == typeof (LightDataTable))
-                        return (T) (Object) (new LightDataTable(command.ExecuteReader()));
-                    if (typeof (T) == typeof (long))
+                    if (typeof(T) == typeof(LightDataTable))
                     {
-                        return (T)(object)(long)command.ExecuteScalar();
+                        var reader = await command.ExecuteReaderAsync();
+                        return (T)(Object)(new LightDataTable(reader));
+                    }                        
+                    else if (typeof (T) == typeof (long))
+                    {
+                        return (T)(object)(long)(await command.ExecuteScalarAsync());
                     }
-                    if (typeof (T) == typeof (int))
-                        return (T) (Object) (command.ExecuteNonQuery());
-
-                    throw new NotSupportedException(string.Format("Generic parameter type {0} is not supported by SQLiteAgent.ExecuteCommandInt.",
+                    else if (typeof(T) == typeof(int))
+                    {
+                        return (T)(Object)(await command.ExecuteNonQueryAsync());
+                    }                        
+                    else throw new NotSupportedException(string.Format("Generic parameter type {0} is not supported by SQLiteAgent.ExecuteCommandInt.",
                         typeof (T).FullName));
 
                 }
@@ -1098,7 +1191,7 @@ namespace Apskaita5.DAL.Sqlite
 
                     try
                     {
-                        _currentTransaction.Rollback();
+                        CurrentTransaction.Rollback();
                     }
                     catch (Exception e)
                     {
@@ -1131,7 +1224,7 @@ namespace Apskaita5.DAL.Sqlite
         }
 
 
-        private DbTableSchema GetDbTableSchema(LightDataRow tableStatusRow, LightDataTable indexData)
+        private async Task<DbTableSchema> GetDbTableSchemaAsync(LightDataRow tableStatusRow, LightDataTable indexData)
         {
 
             var result = new DbTableSchema
@@ -1144,9 +1237,9 @@ namespace Apskaita5.DAL.Sqlite
                 row => row.GetStringOrDefault(1, string.Empty).Trim().ToLower() 
                     == result.Name.Trim().ToLower()).ToList();
 
-            var foreignKeys = this.FetchTableRaw(string.Format("PRAGMA foreign_key_list({0});", result.Name), null);
+            var foreignKeys = await FetchTableRawAsync(string.Format("PRAGMA foreign_key_list({0});", result.Name), null);
 
-            var fieldsData = this.FetchTableRaw(string.Format("PRAGMA table_info({0});", result.Name), null);
+            var fieldsData = await FetchTableRawAsync(string.Format("PRAGMA table_info({0});", result.Name), null);
 
             var createSql = tableStatusRow.GetString(1);
             createSql = createSql.Replace("[", "").Replace("]", "").Substring(createSql.IndexOf("(") + 1);
@@ -1253,7 +1346,7 @@ namespace Apskaita5.DAL.Sqlite
                 case "real":
                     return DbDataType.Real;
                 case "text":
-                    return DbDataType.Blob;
+                    return DbDataType.Text;
                 case "varchar":
                     return DbDataType.VarChar;
                 default:

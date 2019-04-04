@@ -82,12 +82,12 @@ namespace DeveloperUtils
                     this.queryTextBox.Text.Trim().ToLower().StartsWith("explain ") ||
                     this.queryTextBox.Text.Trim().ToLower().StartsWith("pragma "))
                 {
-                    var data = _agent.FetchTableRaw(this.queryTextBox.Text, null);
+                    var data = _agent.FetchTableRawAsync(this.queryTextBox.Text, null).Result;
                     result = data.ToDataTable();
                 }
                 else if (this.queryTextBox.Text.Trim().ToLower().StartsWith("insert "))
                 {
-                    var data = _agent.ExecuteInsertRaw(this.queryTextBox.Text, null);
+                    var data = _agent.ExecuteInsertRawAsync(this.queryTextBox.Text, null).Result;
                     result = new DataTable();
                     result.Columns.Add("Last Insert ID");
                     result.Rows.Add();
@@ -95,7 +95,7 @@ namespace DeveloperUtils
                 }
                 else
                 {
-                    var data = _agent.ExecuteInsertRaw(this.queryTextBox.Text, null);
+                    var data = _agent.ExecuteInsertRawAsync(this.queryTextBox.Text, null).Result;
                     result = new DataTable();
                     result.Columns.Add("Affected Rows");
                     result.Rows.Add();
@@ -138,7 +138,7 @@ namespace DeveloperUtils
 
             try
             {
-                _schema = _agent.GetDbSchema();
+                _schema = _agent.GetDbSchemaAsync().Result;
             }
             catch (Exception ex)
             {

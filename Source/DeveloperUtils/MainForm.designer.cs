@@ -40,6 +40,7 @@
             this.sQLToolsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.loginSQLServerToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.sQLBrowserToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.cloneDatabaseToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.tools_MenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.xsdValidation_MenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.sqlGeneratorToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -65,7 +66,7 @@
             this.statusStrip = new System.Windows.Forms.StatusStrip();
             this.toolStripStatusLabel = new System.Windows.Forms.ToolStripStatusLabel();
             this.toolTip = new System.Windows.Forms.ToolTip(this.components);
-            this.cloneDatabaseToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.checkStructureErrorsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.menuStrip.SuspendLayout();
             this.toolStrip.SuspendLayout();
             this.statusStrip.SuspendLayout();
@@ -137,7 +138,8 @@
             this.sQLToolsToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.loginSQLServerToolStripMenuItem,
             this.sQLBrowserToolStripMenuItem,
-            this.cloneDatabaseToolStripMenuItem});
+            this.cloneDatabaseToolStripMenuItem,
+            this.checkStructureErrorsToolStripMenuItem});
             this.sQLToolsToolStripMenuItem.Name = "sQLToolsToolStripMenuItem";
             this.sQLToolsToolStripMenuItem.Size = new System.Drawing.Size(83, 20);
             this.sQLToolsToolStripMenuItem.Text = "SQL Queries";
@@ -145,16 +147,23 @@
             // loginSQLServerToolStripMenuItem
             // 
             this.loginSQLServerToolStripMenuItem.Name = "loginSQLServerToolStripMenuItem";
-            this.loginSQLServerToolStripMenuItem.Size = new System.Drawing.Size(163, 22);
+            this.loginSQLServerToolStripMenuItem.Size = new System.Drawing.Size(191, 22);
             this.loginSQLServerToolStripMenuItem.Text = "Login SQL Server";
             this.loginSQLServerToolStripMenuItem.Click += new System.EventHandler(this.loginSQLServerToolStripMenuItem_Click);
             // 
             // sQLBrowserToolStripMenuItem
             // 
             this.sQLBrowserToolStripMenuItem.Name = "sQLBrowserToolStripMenuItem";
-            this.sQLBrowserToolStripMenuItem.Size = new System.Drawing.Size(163, 22);
+            this.sQLBrowserToolStripMenuItem.Size = new System.Drawing.Size(191, 22);
             this.sQLBrowserToolStripMenuItem.Text = "SQL Browser";
             this.sQLBrowserToolStripMenuItem.Click += new System.EventHandler(this.sQLBrowserToolStripMenuItem_Click);
+            // 
+            // cloneDatabaseToolStripMenuItem
+            // 
+            this.cloneDatabaseToolStripMenuItem.Name = "cloneDatabaseToolStripMenuItem";
+            this.cloneDatabaseToolStripMenuItem.Size = new System.Drawing.Size(191, 22);
+            this.cloneDatabaseToolStripMenuItem.Text = "Clone Database";
+            this.cloneDatabaseToolStripMenuItem.Click += new System.EventHandler(this.cloneDatabaseToolStripMenuItem_Click);
             // 
             // tools_MenuItem
             // 
@@ -369,12 +378,12 @@
             this.toolStripStatusLabel.Size = new System.Drawing.Size(39, 17);
             this.toolStripStatusLabel.Text = "Status";
             // 
-            // cloneDatabaseToolStripMenuItem
+            // checkStructureErrorsToolStripMenuItem
             // 
-            this.cloneDatabaseToolStripMenuItem.Name = "cloneDatabaseToolStripMenuItem";
-            this.cloneDatabaseToolStripMenuItem.Size = new System.Drawing.Size(163, 22);
-            this.cloneDatabaseToolStripMenuItem.Text = "Clone Database";
-            this.cloneDatabaseToolStripMenuItem.Click += new System.EventHandler(this.cloneDatabaseToolStripMenuItem_Click);
+            this.checkStructureErrorsToolStripMenuItem.Name = "checkStructureErrorsToolStripMenuItem";
+            this.checkStructureErrorsToolStripMenuItem.Size = new System.Drawing.Size(191, 22);
+            this.checkStructureErrorsToolStripMenuItem.Text = "Check Structure Errors";
+            this.checkStructureErrorsToolStripMenuItem.Click += new System.EventHandler(this.checkStructureErrorsToolStripMenuItem_Click);
             // 
             // MainForm
             // 
@@ -439,6 +448,7 @@
         private System.Windows.Forms.ToolStripMenuItem loginSQLServerToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem sQLBrowserToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem cloneDatabaseToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem checkStructureErrorsToolStripMenuItem;
     }
 }
 

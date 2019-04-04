@@ -83,7 +83,7 @@ namespace Apskaita5.DAL.Common
                 ReadSqlRepositoryFile(filePath, result, skipDuplicateTokens);
             }
 
-            if (_tokenDictionary.Count < 1 && throwOnNoRepositoryFound)
+            if (result.Count < 1 && throwOnNoRepositoryFound)
                 throw new FileNotFoundException(string.Format(Properties.Resources.SqlDictionary_RepositoryFilesNotFound,
                     sqlAgent.GetType().FullName));
 

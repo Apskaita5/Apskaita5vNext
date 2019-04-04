@@ -36,7 +36,7 @@ namespace DeveloperUtils
 
             this.sqlAgentsComboBox.DisplayMember = "Name";
             this.sqlAgentsComboBox.DataSource = agents;
-
+            this.connectionStringTextBox.Text = "Server=localhost;Uid=root;Pwd=myPass;CharSet=utf8;";
         }
 
         private void openDatabaseFileButton_Click(object sender, EventArgs e)
@@ -95,7 +95,7 @@ namespace DeveloperUtils
                     this.connectionStringTextBox.Text, this.sqlRepositoryFolderTextBox.Text,
                     this.useSqlRepositoryCheckBox.Checked);
                 _agent.CurrentDatabase = this.databaseTextBox.Text;
-                _agent.TestConnection();
+                _agent.TestConnectionAsync().Wait();
             }
             catch (Exception ex)
             {

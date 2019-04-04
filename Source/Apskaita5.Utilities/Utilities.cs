@@ -30,7 +30,7 @@ namespace Apskaita5.Common
         public static string ToLetterIndex(this int value)
         {
             if (value < 1 || value > _letters.Length) return string.Empty;
-            return _letters[value - 1];
+            return _letters[value - 1];            
         }
 
         /// <summary>

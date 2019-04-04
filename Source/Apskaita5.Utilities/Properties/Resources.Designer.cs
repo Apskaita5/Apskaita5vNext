@@ -88,6 +88,15 @@ namespace Apskaita5.Common.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Object of type {0} is not found using id={1}..
+        /// </summary>
+        internal static string ObjectNotFound {
+            get {
+                return ResourceManager.GetString("ObjectNotFound", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Parameter {0} cannot be negative..
         /// </summary>
         internal static string ParameterCannotBeNegative {
