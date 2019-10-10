@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Security;
+using System.Text;
 
 namespace Apskaita5.DAL.Common
 {
@@ -13,13 +14,69 @@ namespace Apskaita5.DAL.Common
     /// SQL query.
     /// </summary>
     [Serializable]
-    public sealed class SqlRepository : List<SqlRepositoryItem>
+    public sealed class SqlRepository 
     {
+
+        private string _application = string.Empty;
+        private string _description = string.Empty;
+        private string _extension = string.Empty;
+        private string _extensionGuid = string.Empty;
+        private string _sqlImplementation = string.Empty;
+        private List<SqlRepositoryItem> _items = new List<SqlRepositoryItem>();
+
+
+        /// <summary>
+        /// Gets or sets a name of the application that the repository is meant for.
+        /// </summary>
+        public string Application { get => _application ?? string.Empty; set => _application = value ?? string.Empty; }
+
+        /// <summary>
+        /// Gets or sets a description of the repository (if any).
+        /// </summary>
+        public string Description { get => _description ?? string.Empty; set => _description = value ?? string.Empty; }
+
+        /// <summary>
+        /// Gets or sets a name of the applicatiion extension if the repository belongs to one. 
+        /// Empty string otherwise.
+        /// </summary>
+        public string Extension { get => _extension ?? string.Empty; set => _extension = value ?? string.Empty; }
+
+        /// <summary>
+        /// Gets or sets an extension Guid if the repository belongs to the application extension. Empty string otherwise.
+        /// </summary>
+        public string ExtensionGuid { get => _extensionGuid ?? string.Empty; set => _extensionGuid = value ?? string.Empty; }
+
+        /// <summary>
+        /// Gets or sets a SQL implementation code, e.g. MySQL, SQLite etc.
+        /// </summary>
+        public string SqlImplementation { get => _sqlImplementation ?? string.Empty; set => _sqlImplementation = value ?? string.Empty; }
+
+        /// <summary>
+        /// Gets or sets a list of the repository entries.
+        /// </summary>
+        public List<SqlRepositoryItem> Items { get => _items; set => _items = value ?? new List<SqlRepositoryItem>(); }
+
+
+        /// <summary>
+        /// Creates a new empty SQL repository.
+        /// </summary>
+        public SqlRepository() { }
+
+        /// <summary>
+        /// Creates an SQL repository from a serialized value.
+        /// </summary>
+        public SqlRepository(string xmlString)
+        {
+            LoadXml(xmlString);
+        }
+
 
         /// <summary>
         /// Loads a collection of SqlRepositoryItem from the XML file specified.
         /// </summary>
         /// <param name="filePath">the xml file to load the data from</param>
+        /// <param name="clearCurrentItems">whether to clear current collection of SQL statements 
+        /// before loading new ones</param>
         /// <exception cref="ArgumentNullException">Parameter filePath is not specified.</exception>
         /// <exception cref="FileNotFoundException">File not found.</exception>
         /// <exception cref="ArgumentException">filePath contains one or more invalid characters 
@@ -34,7 +91,7 @@ namespace Apskaita5.DAL.Common
         /// <exception cref="FileNotFoundException">The file specified in filePath was not found.</exception>
         /// <exception cref="NotSupportedException">filePath is in an invalid format.</exception>
         /// <exception cref="SecurityException">The caller does not have the required permission.</exception>
-        public void LoadFile(string filePath)
+        public void LoadFile(string filePath, bool clearCurrentItems = false)
         {
 
             if (filePath.IsNullOrWhiteSpace())
@@ -42,16 +99,47 @@ namespace Apskaita5.DAL.Common
             if (!File.Exists(filePath))
                 throw new FileNotFoundException(string.Format(Properties.Resources.FileNotFound, filePath), filePath);
 
-            LoadXml(File.ReadAllText(filePath, Constants.DefaultXmlFileEncoding));
+            try
+            {
+                LoadXml(File.ReadAllText(filePath, new UTF8Encoding(false)));
+            }
+            catch (Exception)
+            {
+                try
+                {
+                    LoadXml(File.ReadAllText(filePath, new UTF8Encoding(true)));
+                }
+                catch (Exception)
+                {
+                    try
+                    {
+                        LoadXml(File.ReadAllText(filePath, Encoding.Unicode));
+                    }
+                    catch (Exception)
+                    {                        
+                        try
+                        {
+                            LoadXml(File.ReadAllText(filePath, Encoding.ASCII));
+                        }
+                        catch (Exception ex)
+                        {
+                            throw new InvalidDataException(string.Format(Properties.Resources.InvalidSqlRepositoryFileFormatException, 
+                                filePath, ex.Message));
+                        }
+                    }
+                }
+            }
 
         }
-
+        
         /// <summary>
         /// Loads a collection of SqlRepositoryItem from the XML string specified.
         /// </summary>
         /// <param name="xmlString">an XML string that contains SqlRepository data</param>
+        /// <param name="clearCurrentItems">whether to clear current collection of SQL statements 
+        /// before loading new ones</param>
         /// <exception cref="ArgumentNullException">XML source string is empty.</exception>
-        public void LoadXml(string xmlString)
+        public void LoadXml(string xmlString, bool clearCurrentItems = false)
         {
 
             if (xmlString.IsNullOrWhiteSpace())
@@ -59,7 +147,8 @@ namespace Apskaita5.DAL.Common
 
             var result = Utilities.DeSerializeFromXml<SqlRepository>(xmlString);
 
-            this.AddRange(result);
+            if (clearCurrentItems) _items.Clear();
+            _items.AddRange(result._items);
 
         }
 
@@ -70,42 +159,33 @@ namespace Apskaita5.DAL.Common
         /// <param name="delimitedString">a string that contains SqlRepositoryItem data</param>
         /// <param name="lineDelimiter">a string that delimits lines (SqlRepositoryItem's)</param>
         /// <param name="fieldDelimiter">a string that delimits fields (SqlRepositoryItem's properties)</param>
+        /// <param name="clearCurrentItems">whether to clear current collection of SQL statements 
+        /// before loading new ones</param>
         /// <exception cref="ArgumentNullException">Source string is empty.</exception>
         /// <exception cref="ArgumentNullException">Parameter lineDelimiter is not specified.</exception>
         /// <exception cref="ArgumentNullException">Parameter fieldDelimiter is not specified.</exception>
         /// <exception cref="ArgumentException">Source string contains no fields.</exception>
         public void LoadDelimitedString(string delimitedString, string lineDelimiter, 
-            string fieldDelimiter)
+            string fieldDelimiter, bool clearCurrentItems = false)
         {
             if (delimitedString.IsNullOrWhiteSpace())
                 throw new ArgumentNullException(nameof(delimitedString));
-            if (lineDelimiter == null || lineDelimiter.Length < 1)
+            if (null == lineDelimiter || lineDelimiter.Length < 1)
                 throw new ArgumentNullException(nameof(lineDelimiter));
-            if (fieldDelimiter == null || fieldDelimiter.Length < 1)
+            if (null == fieldDelimiter || fieldDelimiter.Length < 1)
                 throw new ArgumentNullException(nameof(fieldDelimiter));
 
             if (!delimitedString.Contains(fieldDelimiter))
                 throw new ArgumentException(Properties.Resources.NoFieldsInString, nameof(delimitedString));
 
-            foreach (var line in delimitedString.Split(new string[]{lineDelimiter}, 
-                StringSplitOptions.RemoveEmptyEntries))
-            {
-                if (!line.IsNullOrWhiteSpace())
-                {
+            var newItems = delimitedString.Split(new string[] { lineDelimiter }, StringSplitOptions.RemoveEmptyEntries)
+                .Where(line => !line.IsNullOrWhiteSpace()).Select(line => new SqlRepositoryItem(line, fieldDelimiter));
 
-                    var newItem = new SqlRepositoryItem
-                        {
-                            Token = line.GetDelimitedField(0, fieldDelimiter),
-                            Query = line.GetDelimitedField(1, fieldDelimiter),
-                            UsedByTypes = line.GetDelimitedField(2, fieldDelimiter)
-                        };
-
-                    this.Add(newItem);
-
-                }
-            }
+            if (clearCurrentItems) _items.Clear();
+            _items.AddRange(newItems);
 
         }
+
 
         /// <summary>
         /// Writes the SqlRepository data to the xml file specified.
@@ -133,6 +213,7 @@ namespace Apskaita5.DAL.Common
 
         }
 
+
         /// <summary>
         /// Gets an XML string that contains SqlRepository data.
         /// </summary>
@@ -143,6 +224,39 @@ namespace Apskaita5.DAL.Common
         }
 
         /// <summary>
+        /// Gets a token - query dictionary for the repository.
+        /// </summary>
+        internal Dictionary<string, string> GetDictionary()
+        {           
+            var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var item in _items)
+            {
+                if (!item.Token.IsNullOrWhiteSpace())
+                {
+                    if (result.ContainsKey(item.Token.Trim())) throw new InvalidDataException(string.Format(
+                        Properties.Resources.CannotConvertToDictionaryException, item.Token));
+                    result.Add(item.Token.Trim(), item.Query);
+                }
+            }
+            return result;
+        }
+
+        /// <summary>
+        /// Gets a token - query dictionary for the repository and merges it into the base dictionary.
+        /// </summary>
+        /// <param name="baseDictionary">a dictionary to merge the data into</param>
+        internal void MergeIntoDictionary(Dictionary<string, string> baseDictionary)
+        {
+            foreach (var item in GetDictionary())
+            {
+                if (baseDictionary.ContainsKey(item.Key)) throw new InvalidDataException(string.Format(
+                    Properties.Resources.CannotMergeToDictionaryException, item.Key));
+                baseDictionary.Add(item.Key, item.Value);
+            }
+        }
+
+
+        /// <summary>
         /// Gets a list of namespaces that use the repository.
         /// </summary>
         public List<string> GetNamespaces()
@@ -150,24 +264,17 @@ namespace Apskaita5.DAL.Common
 
             var result = new List<string>();
 
-            foreach (var entry in this)
+            foreach (var item in _items
+                .Where(entry => !string.IsNullOrWhiteSpace(entry.UsedByTypes))
+                .SelectMany(entry => entry.UsedByTypes.Split(new string[] { ";" }, StringSplitOptions.RemoveEmptyEntries)))
             {
-                if (!string.IsNullOrWhiteSpace(entry.UsedByTypes))
+                if (item.Contains("."))
                 {
-                    foreach (var type in entry.UsedByTypes.Split(new string[] { ";" }, StringSplitOptions.RemoveEmptyEntries))
-                    {
-                        if (type.Contains("."))
-                        {
-                            var nameSpace = type.Split(new string[] {"."}, StringSplitOptions.RemoveEmptyEntries)[0].Trim();
-                            if (!result.Contains(nameSpace, StringComparer.OrdinalIgnoreCase)) 
-                                result.Add(nameSpace);
-                        }
-                        else
-                        {
-                            if (!result.Contains(string.Empty)) result.Add(string.Empty);
-                        }
-                    }
+                     var nameSpace = item.Split(new string[] { "." }, StringSplitOptions.RemoveEmptyEntries)[0].Trim();
+                     if (!result.Contains(nameSpace, StringComparer.OrdinalIgnoreCase))
+                        result.Add(nameSpace);
                 }
+                else if (!result.Contains(string.Empty)) result.Add(string.Empty);                
             }
 
             result.Sort();
@@ -181,25 +288,12 @@ namespace Apskaita5.DAL.Common
         /// </summary>
         public List<string> GetTypes()
         {
-
-            var result = new List<string>();
-
-            foreach (var entry in this)
-            {
-                if (!string.IsNullOrWhiteSpace(entry.UsedByTypes))
-                {
-                    foreach (var type in entry.UsedByTypes.Split(new string[] { ";" }, StringSplitOptions.RemoveEmptyEntries))
-                    {
-                        if (!result.Contains(type.Trim(), StringComparer.OrdinalIgnoreCase))
-                            result.Add(type.Trim());
-                    }
-                }
-            }
-
-            result.Sort();
-
-            return result;
-
+            return _items
+                .Where(entry => !string.IsNullOrWhiteSpace(entry.UsedByTypes))
+                .SelectMany(entry => entry.UsedByTypes.Split(new string[] { ";" }, StringSplitOptions.RemoveEmptyEntries))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(val => val)
+                .ToList();
         }
 
         /// <summary>
@@ -212,23 +306,14 @@ namespace Apskaita5.DAL.Common
             if (nameSpace.IsNullOrWhiteSpace())
                 return GetTypes();
 
-            var result = new List<string>();
+            nameSpace = nameSpace.Trim() + ".";
 
-            foreach (var type in this.GetTypes())
-            {
-                if (!string.IsNullOrWhiteSpace(type) &&
-                    type.StartsWith(nameSpace.Trim() + ".", StringComparison.OrdinalIgnoreCase))
-                {
-                    var shortType = type.Trim().Substring((nameSpace.Trim() + ".").Length);
-                    if (!result.Contains(shortType, StringComparer.OrdinalIgnoreCase))
-                        result.Add(shortType);
-                }
-
-            }
-
-            result.Sort();
-
-            return result;
+            return GetTypes()
+                .Where(type => type.Trim().StartsWith(nameSpace, StringComparison.OrdinalIgnoreCase))
+                .Select(type => type.Trim().Substring(nameSpace.Length))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(val => val)
+                .ToList();
 
         }
 
@@ -237,7 +322,7 @@ namespace Apskaita5.DAL.Common
         /// </summary>
         public bool ContainsEmptyTokens()
         {
-            return this.Any(entry => entry.Token.IsNullOrWhiteSpace());
+            return _items.Any(entry => entry.Token.IsNullOrWhiteSpace());
         }
 
         /// <summary>
@@ -246,40 +331,19 @@ namespace Apskaita5.DAL.Common
         /// </summary>
         public List<string> GetNotUsedTokens()
         {
-            return (from entry in this where entry.UsedByTypes.IsNullOrWhiteSpace() select entry.Token).ToList();
+            return (from entry in _items where entry.UsedByTypes.IsNullOrWhiteSpace() select entry.Token).ToList();
         }
 
         /// <summary>
         /// Gets a list of duplicate (invalid) Tokens. Returns an empty list if no duplicate Tokens found.
         /// </summary>
         public List<string> GetDuplicateTokens()
-        {
-
-            var result = new List<string>();
-            foreach (var firstEntry in this)
-            {
-                
-                if (!firstEntry.Token.IsNullOrWhiteSpace())
-                {
-
-                    foreach (var secondEntry in this)
-                    {
-                        if (!Object.ReferenceEquals(firstEntry, secondEntry) &&
-                            firstEntry.Token.Equals(secondEntry.Token, StringComparison.OrdinalIgnoreCase))
-                        {
-                            if (!result.Contains(firstEntry.Token.Trim(), StringComparer.OrdinalIgnoreCase))
-                                result.Add(firstEntry.Token.Trim());
-                        }
-
-                    }
-
-                }
-                
-            }
-
-            return result;
-
+        {   
+            return _items.GroupBy(item => item.Token.Trim(), StringComparer.OrdinalIgnoreCase)
+              .Where(g => g.Count() > 1)
+              .Select(g => g.Key)
+              .ToList();
         }
-
+        
     }
 }

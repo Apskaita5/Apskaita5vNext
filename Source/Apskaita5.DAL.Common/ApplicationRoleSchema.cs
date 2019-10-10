@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using Apskaita5.DAL.Common.TypeConverters;
 
 namespace Apskaita5.DAL.Common
 {
@@ -39,7 +40,7 @@ namespace Apskaita5.DAL.Common
         /// </summary>
         public string Name {
             get { return _name; }
-            set { _name = value.NotNullValue().Trim(); }
+            set { _name = value?.Trim() ?? string.Empty; }
         }
 
         /// <summary>
@@ -48,7 +49,7 @@ namespace Apskaita5.DAL.Common
         public string Description
         {
             get { return _description; }
-            set { _description = value.NotNullValue().Trim(); }
+            set { _description = value?.Trim() ?? string.Empty; }
         }
 
         /// <summary>
@@ -111,7 +112,7 @@ namespace Apskaita5.DAL.Common
         public string RequiredLookUpRoles
         {
             get { return _requiredLookUpRoles; }
-            set { _requiredLookUpRoles = value.NotNullValue().Trim(); }
+            set { _requiredLookUpRoles = value?.Trim() ?? string.Empty; }
         }
 
 
@@ -124,16 +125,16 @@ namespace Apskaita5.DAL.Common
 
             if (source.IsNullOrWhiteSpace())
                 throw new ArgumentNullException(nameof(source));
-            if (fieldDelimiter == null || fieldDelimiter.Length < 1)
+            if (null == fieldDelimiter || fieldDelimiter.Length < 1)
                 throw new ArgumentNullException(nameof(fieldDelimiter));
 
             _name = source.GetDelimitedField(0, fieldDelimiter);
             _description = source.GetDelimitedField(1, fieldDelimiter);
-            _isLookUpRole = source.GetDelimitedField(2, fieldDelimiter).ParseBoolean(false);
-            _hasSelectSubrole = source.GetDelimitedField(3, fieldDelimiter).ParseBoolean(true);
-            _hasInsertSubrole = source.GetDelimitedField(4, fieldDelimiter).ParseBoolean(true);
-            _hasUpdateSubrole = source.GetDelimitedField(5, fieldDelimiter).ParseBoolean(true);
-            _hasExecuteSubrole = source.GetDelimitedField(6, fieldDelimiter).ParseBoolean(false);
+            _isLookUpRole = source.GetDelimitedField(2, fieldDelimiter).GetBooleanOrDefault(false);
+            _hasSelectSubrole = source.GetDelimitedField(3, fieldDelimiter).GetBooleanOrDefault(true);
+            _hasInsertSubrole = source.GetDelimitedField(4, fieldDelimiter).GetBooleanOrDefault(true);
+            _hasUpdateSubrole = source.GetDelimitedField(5, fieldDelimiter).GetBooleanOrDefault(true);
+            _hasExecuteSubrole = source.GetDelimitedField(6, fieldDelimiter).GetBooleanOrDefault(false);
             _requiredLookUpRoles = source.GetDelimitedField(7, fieldDelimiter);
 
         }

@@ -1,37 +1,44 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Data;
 using System.IO;
-using System.Linq;
-using System.Security;
+using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
+using Apskaita5.DAL.Common.DbSchema;
+using Apskaita5.DAL.Common.MicroOrm;
 
 namespace Apskaita5.DAL.Common
 {
+
     /// <summary>
     /// Represents a base class for a concrete SQL implementation, e.g. MySql, SQLite, etc.
     /// </summary>
-    /// <remarks>Should be stored in ApplicationContext.Local context (in thread for client, 
-    /// in http context on server).</remarks>
-    public abstract class SqlAgentBase
+    /// <remarks>On ASP .NET core should be used:
+    /// - as a singleton if only one database is used;
+    /// - inside a scoped wrapper that would have IHttpContextAccessor dependency in constructor and 
+    /// initialize the encapsulated SQL agent using request info.
+    /// On standalone application should use (static?) dictionary per database </remarks>
+    public abstract class SqlAgentBase : ISqlAgent, IDisposable
     {
 
-        private readonly string _sqlRepositoryPath = string.Empty;
-        protected readonly string _baseConnectionString = string.Empty;
-        protected string _currentDatabase = string.Empty;
-        private int _queryTimeOut = 10000;
-        private bool _UseTransactionPerInstance = false;
-        private bool _BooleanStoredAsTinyInt = true;
+        #region Fields
+                
+        private readonly ISqlDictionary _sqlDictionary;
+        protected readonly ILogger _Logger = null; 
 
-        private static readonly string[] ParamLetters = new string[]{"A", "B", "C", "D", "E", 
-            "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "Q", "P", "R", "S", "T", "U", "V", "Z", "W"};
-        private static List<string> _paramDictionary = null;
+        #endregion
 
+        #region Properties         
 
         /// <summary>
         /// Gets a name of the SQL implementation behind the SqlAgent, e.g. MySql, SQLite, etc.
         /// </summary>
         public abstract string Name { get; }
+
+        /// <summary>
+        /// Gets an id of the concrete SQL implementation, e.g. MySQL, SQLite.
+        /// The id is used to select an appropriate SQL token dictionary.
+        /// </summary>
+        public abstract string SqlImplementationId { get; }
 
         /// <summary>
         /// Gets a value indicationg whether the SQL engine is file based (e.g. SQLite),
@@ -46,37 +53,20 @@ namespace Apskaita5.DAL.Common
         public abstract string RootName { get; }
 
         /// <summary>
-        /// Gets or sets a query timeout in ms. (default is 10.000 ms)
-        /// </summary>
-        public int QueryTimeOut {
-            get { return _queryTimeOut; }
-            set { _queryTimeOut = value; }
-        }
-
-        /// <summary>
-        /// Gets a prefix of the names of the files that contain SQL queries written 
-        /// for the SQL implementation behind the SqlAgent, e.g. mysql_, sqlite_, etc.
-        /// All XML files with this prefix is loaded into SQL dictionary at runtime. 
-        /// It is needed in order to support various plugin repositories.
-        /// </summary>
-        public abstract string SqlRepositoryFileNamePrefix { get; }
-
-        /// <summary>
         /// Gets a simbol used as a wildcart for the SQL implementation behind the SqlAgent, e.g. %, *, etc.
         /// </summary>
         public abstract string Wildcart { get; }
 
         /// <summary>
-        /// Gets or sets whether a transaction is stored within SqliteAgent instance.
-        /// If not, a transaction is stored within AsyncLocal storage.
+        /// Gets a connection string that does not include database parameter. 
         /// </summary>
-        public bool UseTransactionPerInstance { get => _UseTransactionPerInstance; set { _UseTransactionPerInstance = value; } }
+        /// <remarks>Should be initialized when creating an SqlAgent instance.</remarks>
+        public string BaseConnectionString { get; }
 
         /// <summary>
-        /// Gets or sets whether a boolean type is stored as TinyInt, i.e. param values needs
-        /// to be replaced: true = 1; false = 0.
+        /// Gets the current database name (string.Empty for no database).
         /// </summary>
-        public bool BooleanStoredAsTinyInt { get => _BooleanStoredAsTinyInt; set { _BooleanStoredAsTinyInt = value; } }
+        public string CurrentDatabase { get; }
 
         /// <summary>
         /// Gets a value indicationg whether an SQL transation is in progress.
@@ -84,36 +74,35 @@ namespace Apskaita5.DAL.Common
         public abstract bool IsTransactionInProgress { get; }
 
 
-        /// <summary>
-        /// Gets a path to the folder with the files that contain SQL repositories. 
-        /// </summary>
-        /// <remarks>Should be initialized when creating an SqlAgent instance.</remarks>
-        public string SqlRepositoryPath {
-            get { return _sqlRepositoryPath; }
-        }
 
         /// <summary>
-        /// Gets a connection string that does not include database parameter. 
+        /// Gets or sets a query timeout in ms. (default is 10.000 ms)
         /// </summary>
-        /// <remarks>Should be initialized when creating an SqlAgent instance.</remarks>
-        public string BaseConnectionString
-        {
-            get { return _baseConnectionString; }
-        }
+        public int QueryTimeOut { get; set; } = 10000;
 
-       /// <summary>
-        /// Gets or sets the current database name (string.Empty for no database).
+        /// <summary>
+        /// Gets or sets whether a transaction is stored within SqliteAgent instance.
+        /// If not, a transaction is stored within AsyncLocal storage.
         /// </summary>
-        /// <exception cref="InvalidOperationException">Cannot change database while a transaction is in progress.</exception>
-        public string CurrentDatabase {
-            get { return _currentDatabase; }
-            set
-            {
-                if (this.IsTransactionInProgress)
-                    throw new InvalidOperationException(Properties.Resources.SqlAgentBase_CannotChangeDatabase);
-                _currentDatabase = value.NotNullValue().Trim();
-            }
-        }
+        public bool UseTransactionPerInstance { get; set; } = false;
+
+        /// <summary>
+        /// Gets or sets whether a boolean type is stored as TinyInt, i.e. param values needs
+        /// to be replaced: true = 1; false = 0.
+        /// </summary>
+        public bool BooleanStoredAsTinyInt { get; set; } = true;
+
+        /// <summary>
+        /// Gets or sets whether a Guid type is stored as Blob. Otherwise, Guid is stored as CHAR(32).
+        /// </summary>
+        public bool GuidStoredAsBlob { get; set; } = false;
+
+        /// <summary>
+        /// Gets or sets whether all schema names (tables, fields, indexes etc) are lower case only.
+        /// </summary>
+        public bool AllSchemaNamesLowerCased { get; set; } = true;
+
+        #endregion
 
 
         /// <summary>
@@ -125,42 +114,43 @@ namespace Apskaita5.DAL.Common
         /// (if any), password replacement (if needed) should be handled by the user class)</param>
         /// <param name="allowEmptyConnString">whether the SqlAgent implementation can handle
         /// empty connection string (e.g. when the database parameter is the only parameter)</param>
-        /// <param name="sqlRepositoryPath">a path to the folder with the files that contain SQL repositories</param>
-        /// <param name="sqlTokensUsed">whether the user class is going to use SQL query tokens
-        /// i.e. sqlRepositoryPath is required</param>
+        /// <param name="databaseName">a name of the database to use (if any)</param>
+        /// <param name="sqlDictionary">an implementation of SQL dictionary to use (if any)</param>
         protected SqlAgentBase(string baseConnectionString, bool allowEmptyConnString, 
-            string sqlRepositoryPath, bool sqlTokensUsed)
+            string databaseName, ISqlDictionary sqlDictionary, ILogger logger)
         {
             
-            if (sqlRepositoryPath.IsNullOrWhiteSpace() && sqlTokensUsed)
-                throw new ArgumentNullException(nameof(sqlRepositoryPath));
             if (baseConnectionString.IsNullOrWhiteSpace() && !allowEmptyConnString)
                 throw new ArgumentNullException(nameof(baseConnectionString));
 
-            _sqlRepositoryPath = sqlRepositoryPath.NotNullValue().Trim();
-            _baseConnectionString = baseConnectionString.NotNullValue().Trim();
+            _sqlDictionary = sqlDictionary;
+            BaseConnectionString = baseConnectionString?.Trim() ?? string.Empty;
+            CurrentDatabase = databaseName ?? string.Empty;
+            _Logger = logger;
 
         }
 
-
         /// <summary>
-        /// Gets a clean copy (i.e. only connection data, not connection itself) of the SqlAgent instance 
-        /// in order to reuse instance data.
+        /// Creates an SqlAgent clone.
         /// </summary>
-        public SqlAgentBase GetCopy()
+        /// <param name="agentToClone">an SqlAgent to clone</param>
+        protected SqlAgentBase(SqlAgentBase agentToClone)
         {
-            var result = this.GetCopyInt();
-            result._BooleanStoredAsTinyInt = _BooleanStoredAsTinyInt;
-            result._queryTimeOut = _queryTimeOut;
-            result._UseTransactionPerInstance = _UseTransactionPerInstance;
-            return result;
+
+            if (agentToClone.IsNull()) throw new ArgumentNullException(nameof(agentToClone));
+
+            BaseConnectionString = agentToClone.BaseConnectionString;
+            CurrentDatabase = agentToClone.CurrentDatabase;            
+            BooleanStoredAsTinyInt = agentToClone.BooleanStoredAsTinyInt;
+            AllSchemaNamesLowerCased = agentToClone.AllSchemaNamesLowerCased;
+            GuidStoredAsBlob = agentToClone.GuidStoredAsBlob;
+            QueryTimeOut = agentToClone.QueryTimeOut;
+            UseTransactionPerInstance = agentToClone.UseTransactionPerInstance;
+            _sqlDictionary = agentToClone._sqlDictionary;
+            _Logger = agentToClone._Logger;
+
         }
 
-        /// <summary>
-        /// Gets a clean copy (i.e. only connection data, not connection itself) of the SqlAgent instance 
-        /// in order to reuse instance data.
-        /// </summary>
-        protected abstract SqlAgentBase GetCopyInt();
 
         /// <summary>
         /// Tries to open connection. If fails, throws an exception.
@@ -168,12 +158,42 @@ namespace Apskaita5.DAL.Common
         public abstract Task TestConnectionAsync();
 
         /// <summary>
+        /// Checks if the <see cref="CurrentDatabase"/> exists.
+        /// </summary>
+        /// <param name="cancellationToken">a cancelation token (if any)</param>
+        /// <returns>True if the database exists.</returns>
+        public abstract Task<bool> DatabaseExistsAsync(CancellationToken cancellationToken);
+
+        /// <summary>
+        /// Checks if the <see cref="CurrentDatabase"/> is empty, i.e. contains no tables.
+        /// </summary>
+        /// <param name="cancellationToken">a cancelation token (if any)</param>
+        /// <returns>True if the database contains any tables.</returns>
+        public abstract Task<bool> DatabaseEmptyAsync(CancellationToken cancellationToken);
+
+        /// <summary>
+        /// Gets a default database schema manager (to create or drop database schema, extract schema,
+        /// check for schema errors against gauge schema)
+        /// </summary>
+        public abstract ISchemaManager GetDefaultSchemaManager();
+
+        /// <summary>
+        /// Gets a default micro ORM service.
+        /// </summary>
+        public abstract IOrmService GetDefaultOrmService();
+
+        #region Transactions        
+
+        /// <summary>
         /// Executes given <paramref name="method">method</paramref> within an SQL transaction.
         /// Invokes Commit if the method execution is succesfull and the transaction was initiated
         /// by the invoker.
         /// </summary>
         /// <param name="method">a method to execute within an SQL transaction</param>
-        public async Task ExecuteInTransactionAsync(Func<Task> method)
+        /// <param name="cancellationToken">a cancelation token (if any); it is not used by the transaction
+        /// infrastructure, only passed to the method that might use it and throw OperationCanceledException</param>
+        public async Task ExecuteInTransactionAsync(Func<CancellationToken, Task> method, 
+            CancellationToken cancellationToken)
         {
 
             bool isOwner = false;
@@ -181,28 +201,29 @@ namespace Apskaita5.DAL.Common
             if (IsTransactionInProgress)
             {
 
-                if (method == null) TransactionRollback(new ArgumentNullException(nameof(method)));
+                if (null == method) TransactionRollback(new ArgumentNullException(nameof(method)));
 
             }
             else
             {
 
-                if (method == null) throw new ArgumentNullException(nameof(method));
+                if (null == method) throw new ArgumentNullException(nameof(method));
 
-                await TransactionBeginAsync();
+                RegisterTransactionForAsyncContext(await TransactionBeginAsync(cancellationToken).ConfigureAwait(false));
                 isOwner = true;
 
             }
 
             try
             {
-                await method();
+                await method(cancellationToken).ConfigureAwait(false);
                 if (isOwner) TransactionCommit();
             }
             catch (Exception ex)
             {
-                if (!IsTransactionInProgress) throw;
-                TransactionRollback(ex);
+                Log(ex);
+                if (isOwner && IsTransactionInProgress) TransactionRollback(ex);                
+                throw;
             }            
 
         }
@@ -212,32 +233,36 @@ namespace Apskaita5.DAL.Common
         /// Invokes Commit if the method execution is succesfull and the transaction was initiated
         /// by the invoker.
         /// </summary>
-        /// <param name="method">a method to execute within an SQL transaction</param>
-        public async Task ExecuteInTransactionAsync(Func<SqlAgentBase, Task> method)
+        /// <param name="method">a method to execute within an SQL transaction</param> 
+        /// <param name="cancellationToken">a cancelation token (if any); it is not used by the transaction
+        /// infrastructure, only passed to the method that might use it and throw OperationCanceledException</param>
+        public async Task ExecuteInTransactionAsync(Func<SqlAgentBase, CancellationToken, Task> method,
+            CancellationToken cancellationToken)
         {
 
             bool isOwner = false;
 
             if (IsTransactionInProgress)
             {    
-                if (method == null) TransactionRollback(new ArgumentNullException(nameof(method)));
+                if (null == method) TransactionRollback(new ArgumentNullException(nameof(method)));
             }
             else
             {         
-                if (method == null) throw new ArgumentNullException(nameof(method));
-                await TransactionBeginAsync();
+                if (null == method) throw new ArgumentNullException(nameof(method));
+                RegisterTransactionForAsyncContext(await TransactionBeginAsync(cancellationToken).ConfigureAwait(false));
                 isOwner = true;
             }
 
             try
             {
-                await method(this);
+                await method(this, cancellationToken).ConfigureAwait(false);
                 if (isOwner) TransactionCommit();
             }
             catch (Exception ex)
             {
-                if (!IsTransactionInProgress) throw;
-                TransactionRollback(ex);
+                Log(ex);
+                if (isOwner && IsTransactionInProgress) TransactionRollback(ex);                 
+                throw;
             }
 
         }
@@ -248,44 +273,146 @@ namespace Apskaita5.DAL.Common
         /// by the invoker.
         /// </summary>
         /// <param name="method">a method to execute within an SQL transaction</param>
+        /// <param name="parameter">a custom parameter to pass to the method</param> 
+        /// <param name="cancellationToken">a cancelation token (if any); it is not used by the transaction
+        /// infrastructure, only passed to the method that might use it and throw OperationCanceledException</param>
+        public async Task ExecuteInTransactionAsync<T>(Func<SqlAgentBase, T, CancellationToken, Task> method, 
+            T parameter, CancellationToken cancellationToken)
+        {
+
+            bool isOwner = false;
+
+            if (IsTransactionInProgress)
+            {
+                if (null == method) TransactionRollback(new ArgumentNullException(nameof(method)));
+            }
+            else
+            {
+                if (null == method) throw new ArgumentNullException(nameof(method));
+                RegisterTransactionForAsyncContext(await TransactionBeginAsync(cancellationToken).ConfigureAwait(false));
+                isOwner = true;
+            }
+
+            try
+            {
+                await method(this, parameter, cancellationToken).ConfigureAwait(false);
+                if (isOwner) TransactionCommit();
+            }
+            catch (Exception ex)
+            {
+                Log(ex);
+                if (isOwner && IsTransactionInProgress) TransactionRollback(ex);                   
+                throw;
+            }
+
+        }
+
+        /// <summary>
+        /// Executes given <paramref name="method">method</paramref> within an SQL transaction
+        /// and returns the result of the method.
+        /// Invokes Commit if the method execution is succesfull and the transaction was initiated
+        /// by the invoker.
+        /// </summary>
+        /// <param name="method">a method to execute within an SQL transaction</param> 
+        /// <param name="cancellationToken">a cancelation token (if any); it is not used by the transaction
+        /// infrastructure, only passed to the method that might use it and throw OperationCanceledException</param>
+        public async Task<TResult> ExecuteInTransactionAsync<TResult>(Func<CancellationToken, Task<TResult>> method,
+            CancellationToken cancellationToken)
+        {
+
+            bool isOwner = false;
+
+            if (IsTransactionInProgress)
+            {
+
+                if (null == method) TransactionRollback(new ArgumentNullException(nameof(method)));
+                return default(TResult);
+
+            }
+            else
+            {
+
+                if (null == method) throw new ArgumentNullException(nameof(method));
+
+                RegisterTransactionForAsyncContext(await TransactionBeginAsync(cancellationToken).ConfigureAwait(false));
+                isOwner = true;
+
+            }
+
+            try
+            {
+                var result = await method(cancellationToken).ConfigureAwait(false);
+                if (isOwner) TransactionCommit();
+                return result;
+            }
+            catch (Exception ex)
+            {
+                Log(ex);
+                if (isOwner && IsTransactionInProgress) TransactionRollback(ex);
+                throw;
+            }
+
+        }
+
+        /// <summary>
+        /// Executes given <paramref name="method">method</paramref> within an SQL transaction
+        /// and returns the result of the method.
+        /// Invokes Commit if the method execution is succesfull and the transaction was initiated
+        /// by the invoker.
+        /// </summary>
+        /// <param name="method">a method to execute within an SQL transaction</param>  
+        /// <param name="cancellationToken">a cancelation token (if any); it is not used by the transaction
+        /// infrastructure, only passed to the method that might use it and throw OperationCanceledException</param>
+        public async Task<TResult> ExecuteInTransactionAsync<TResult>(Func<SqlAgentBase, CancellationToken, 
+            Task<TResult>> method, CancellationToken cancellationToken)
+        {
+
+            bool isOwner = false;
+
+            if (IsTransactionInProgress)
+            {
+
+                if (null == method) TransactionRollback(new ArgumentNullException(nameof(method)));
+                return default(TResult);
+
+            }
+            else
+            {
+
+                if (null == method) throw new ArgumentNullException(nameof(method));
+
+                RegisterTransactionForAsyncContext(await TransactionBeginAsync(cancellationToken).ConfigureAwait(false));
+                isOwner = true;
+
+            }
+
+            try
+            {
+                var result = await method(this, cancellationToken).ConfigureAwait(false);
+                if (isOwner) TransactionCommit();
+                return result;
+            }
+            catch (Exception ex)
+            {
+                Log(ex);
+                if (isOwner && IsTransactionInProgress) TransactionRollback(ex);
+                throw;
+            }
+
+        }
+
+        /// <summary>
+        /// Executes given <paramref name="method">method</paramref> within an SQL transaction
+        /// and returns the result of the method.
+        /// Invokes Commit if the method execution is succesfull and the transaction was initiated
+        /// by the invoker.
+        /// </summary>
+        /// <param name="method">a method to execute within an SQL transaction</param>
         /// <param name="parameter">a custom parameter to pass to the method</param>
-        public async Task ExecuteInTransactionAsync<T>(Func<SqlAgentBase, T, Task> method, T parameter)
-        {
-
-            bool isOwner = false;
-
-            if (IsTransactionInProgress)
-            {
-                if (method == null) TransactionRollback(new ArgumentNullException(nameof(method)));
-            }
-            else
-            {
-                if (method == null) throw new ArgumentNullException(nameof(method));
-                await TransactionBeginAsync();
-                isOwner = true;
-            }
-
-            try
-            {
-                await method(this, parameter);
-                if (isOwner) TransactionCommit();
-            }
-            catch (Exception ex)
-            {
-                if (!IsTransactionInProgress) throw;
-                TransactionRollback(ex);
-            }
-
-        }
-
-        /// <summary>
-        /// Executes given <paramref name="method">method</paramref> within an SQL transaction
-        /// and returns the result of the method.
-        /// Invokes Commit if the method execution is succesfull and the transaction was initiated
-        /// by the invoker.
-        /// </summary>
-        /// <param name="method">a method to execute within an SQL transaction</param>
-        public async Task<TResult> ExecuteInTransactionAsync<TResult>(Func<Task<TResult>> method)
+        /// <param name="cancellationToken">a cancelation token (if any); it is not used by the transaction
+        /// infrastructure, only passed to the method that might use it and throw OperationCanceledException</param>
+        public async Task<TResult> ExecuteInTransactionAsync<T, TResult>(Func<SqlAgentBase, T, CancellationToken, 
+            Task<TResult>> method, T parameter, CancellationToken cancellationToken)
         {
 
             bool isOwner = false;
@@ -293,120 +420,31 @@ namespace Apskaita5.DAL.Common
             if (IsTransactionInProgress)
             {
 
-                if (method == null) TransactionRollback(new ArgumentNullException(nameof(method)));
+                if (null == method) TransactionRollback(new ArgumentNullException(nameof(method)));
                 return default(TResult);
 
             }
             else
             {
 
-                if (method == null) throw new ArgumentNullException(nameof(method));
+                if (null == method) throw new ArgumentNullException(nameof(method));
 
-                await TransactionBeginAsync();
+                RegisterTransactionForAsyncContext(await TransactionBeginAsync(cancellationToken).ConfigureAwait(false));
                 isOwner = true;
 
             }
 
             try
             {
-                var result = await method();
+                var result = await method(this, parameter, cancellationToken).ConfigureAwait(false);
                 if (isOwner) TransactionCommit();
                 return result;
             }
             catch (Exception ex)
             {
-                if (!IsTransactionInProgress) throw;
-                TransactionRollback(ex);
-                return default(TResult);
-            }
-
-        }
-
-        /// <summary>
-        /// Executes given <paramref name="method">method</paramref> within an SQL transaction
-        /// and returns the result of the method.
-        /// Invokes Commit if the method execution is succesfull and the transaction was initiated
-        /// by the invoker.
-        /// </summary>
-        /// <param name="method">a method to execute within an SQL transaction</param>
-        public async Task<TResult> ExecuteInTransactionAsync<TResult>(Func<SqlAgentBase, Task<TResult>> method)
-        {
-
-            bool isOwner = false;
-
-            if (IsTransactionInProgress)
-            {
-
-                if (method == null) TransactionRollback(new ArgumentNullException(nameof(method)));
-                return default(TResult);
-
-            }
-            else
-            {
-
-                if (method == null) throw new ArgumentNullException(nameof(method));
-
-                await TransactionBeginAsync();
-                isOwner = true;
-
-            }
-
-            try
-            {
-                var result = await method(this);
-                if (isOwner) TransactionCommit();
-                return result;
-            }
-            catch (Exception ex)
-            {
-                if (!IsTransactionInProgress) throw;
-                TransactionRollback(ex);
-                return default(TResult);
-            }
-
-        }
-
-        /// <summary>
-        /// Executes given <paramref name="method">method</paramref> within an SQL transaction
-        /// and returns the result of the method.
-        /// Invokes Commit if the method execution is succesfull and the transaction was initiated
-        /// by the invoker.
-        /// </summary>
-        /// <param name="method">a method to execute within an SQL transaction</param>
-        /// <param name="parameter">a custom parameter to pass to the method</param>
-        public async Task<TResult> ExecuteInTransactionAsync<T, TResult>(Func<SqlAgentBase, T, Task<TResult>> method, T parameter)
-        {
-
-            bool isOwner = false;
-
-            if (IsTransactionInProgress)
-            {
-
-                if (method == null) TransactionRollback(new ArgumentNullException(nameof(method)));
-                return default(TResult);
-
-            }
-            else
-            {
-
-                if (method == null) throw new ArgumentNullException(nameof(method));
-
-                await TransactionBeginAsync();
-                isOwner = true;
-
-            }
-
-            try
-            {
-                var result = await method(this, parameter);
-                if (isOwner) TransactionCommit();
-                return result;
-            }
-            catch (Exception ex)
-            {
-                if (!IsTransactionInProgress) throw;
-                TransactionRollback(ex);
-                return default(TResult);
+                Log(ex);
+                if (isOwner && IsTransactionInProgress) TransactionRollback(ex);                
+                throw;
             }
 
         }
@@ -414,7 +452,14 @@ namespace Apskaita5.DAL.Common
         /// <summary>
         /// Begins a transaction.
         /// </summary>
-        protected abstract Task TransactionBeginAsync();
+        protected abstract Task<object> TransactionBeginAsync(CancellationToken cancellationToken);
+
+        /// <summary>
+        /// As the TransactionBeginAsync method is Async, AsyncLocal value is lost outside of it's context
+        /// and needs to be set in the context of the invoking method.
+        /// </summary>
+        /// <param name="transaction">a transaction that has been initiated by the TransactionBeginAsync method</param>
+        protected abstract void RegisterTransactionForAsyncContext(object transaction);
 
         /// <summary>
         /// Commits the current transaction.
@@ -428,61 +473,67 @@ namespace Apskaita5.DAL.Common
         /// <param name="ex">an exception that caused the rollback</param>
         protected abstract void TransactionRollback(Exception ex);
 
+        #endregion
+
+        #region CRUD Methods
+          
         /// <summary>
         /// Fetches data using SQL query token in the SQL repository.
         /// </summary>
         /// <param name="token">a token of the SQL query in the SQL repository</param>
-        /// <param name="parameters">a collection of the SQL query parameters 
-        /// (null or empty array for none)</param>
+        /// <param name="parameters">a collection of the SQL query parameters (null or empty array for none)</param>
+        /// <param name="cancellationToken">a cancelation token (if any)</param>
         /// <returns>a <see cref="LightDataTable">LightDataTable</see> that contains
         /// data returned by the SQL query.</returns>
-        public abstract Task<LightDataTable> FetchTableAsync(string token, SqlParam[] parameters);
+        public abstract Task<LightDataTable> FetchTableAsync(string token, SqlParam[] parameters, CancellationToken cancellationToken);
 
         /// <summary>
-        /// Fetches data using SQL query tokens in the SQL repository.
+        /// Fetches multiple data tables using SQL query tokens in the SQL repository.
         /// </summary>
-        /// <param name="queries">a list of queries where the key is a token of the SQL query in the SQL repository
-        /// and the value is a collection of the SQL query parameters (null or empty array for none)</param>
+        /// <param name="queries">a list of queries identified by tokens in the SQL repository
+        /// and collections of SQL query parameters (null or empty array for none).</param> 
+        /// <param name="cancellationToken">a cancelation token (if any)</param>
         /// <returns>an array of <see cref="LightDataTable">LightDataTables</see> that contain
         /// data returned by the SQL queries.</returns>
-        public abstract Task<LightDataTable[]> FetchTablesAsync(KeyValuePair<string, SqlParam[]>[] queries);
+        public abstract Task<LightDataTable[]> FetchTablesAsync((string Token, SqlParam[] Parameters)[] queries, 
+            CancellationToken cancellationToken);
 
         /// <summary>
-        /// Fetches data using raw SQL query (parameters should be prefixed by ?).
+        /// Fetches data using raw SQL query. i.e. without SQL repository tokens.
         /// </summary>
-        /// <param name="sqlQuery">an SQL query to execute (parameters should be prefixed by ?)</param>
-        /// <param name="parameters">a collection of the SQL query parameters 
-        /// (null or empty array for none)</param>
+        /// <param name="sqlQuery">an SQL query to execute</param>
+        /// <param name="parameters">a collection of the SQL query parameters (null or empty array for none)</param>
+        /// <param name="cancellationToken">a cancelation token (if any)</param>
         /// <returns>a <see cref="LightDataTable">LightDataTable</see> that contains
         /// data returned by the SQL query.</returns>
-        public abstract Task<LightDataTable> FetchTableRawAsync(string sqlQuery, SqlParam[] parameters);
+        public abstract Task<LightDataTable> FetchTableRawAsync(string sqlQuery, SqlParam[] parameters, 
+            CancellationToken cancellationToken);
 
         /// <summary>
         /// Fetches the specified fields from the specified database table.
         /// </summary>
         /// <param name="table">the name of the table to fetch the fields for</param>
         /// <param name="fields">a collection of the names of the fields to fetch</param>
+        /// <param name="cancellationToken">a cancelation token (if any)</param>
         /// <returns>a <see cref="LightDataTable">LightDataTable</see> that contains
         /// specified fields data in the specified table.</returns>
-        /// <remarks>Used to fetch general company data and for SQL migration functionality.</remarks>
-        public abstract Task<LightDataTable> FetchTableFieldsAsync(string table, string[] fields);
+        public abstract Task<LightDataTable> FetchTableFieldsAsync(string table, string[] fields, 
+            CancellationToken cancellationToken);
 
         /// <summary>
         /// Executes an SQL statement, that inserts a new row, using SQL query token 
         /// in the SQL repository and returns last insert id.
         /// </summary>
         /// <param name="insertStatementToken">a token of the SQL statement in the SQL repository</param>
-        /// <param name="parameters">a collection of the SQL statement parameters 
-        /// (null or empty array for none)</param>
+        /// <param name="parameters">a collection of the SQL statement parameters (null or empty array for none)</param>
         /// <returns>last insert id</returns>
         public abstract Task<Int64> ExecuteInsertAsync(string insertStatementToken, SqlParam[] parameters);
-
+        
         /// <summary>
         /// Executes a raw SQL statement, that inserts a new row, and returns last insert id.
         /// </summary>
         /// <param name="insertStatement">an SQL statement to execute</param>
-        /// <param name="parameters">a collection of the SQL statement parameters 
-        /// (null or empty array for none)</param>
+        /// <param name="parameters">a collection of the SQL statement parameters (null or empty array for none)</param>
         /// <returns>last insert id</returns>
         public abstract Task<Int64> ExecuteInsertRawAsync(string insertStatement, SqlParam[] parameters);
 
@@ -513,231 +564,18 @@ namespace Apskaita5.DAL.Common
         /// in order to reuse connection.</remarks>
         public abstract Task ExecuteCommandBatchAsync(string[] statements);
 
-        /// <summary>
-        /// Checks if the database specified exists.
-        /// </summary>
-        /// <param name="databaseName">a name of the database to check</param>
-        /// <returns>True if the database specified exists.</returns>
-        public abstract Task<bool> DatabaseExistsAsync(string databaseName);
+        #endregion
 
         /// <summary>
-        /// Checks if the database is empty, i.e. contains no tables.
+        /// Gets a clean copy (i.e. only connection data, not connection itself) of the SqlAgent instance 
+        /// in order to reuse instance data.
         /// </summary>
-        /// <param name="databaseName">a name of the database to check</param>
-        /// <returns>True if the database contains any tables.</returns>
-        public abstract Task<bool> DatabaseEmptyAsync(string databaseName);
+        public abstract SqlAgentBase GetCopy();
 
-
-        /// <summary>
-        /// Gets a <see cref="DbSchema">DbSchema</see> instance (a canonical database description) 
-        /// for the current database.
-        /// </summary>
-        public abstract Task<DbSchema> GetDbSchemaAsync();
-
-        /// <summary>
-        /// Compares the current database definition to the gauge definition definition read from 
-        /// the file specified and returns a list of DbSchema errors, i.e. inconsistencies found 
-        /// and SQL statements to repair them.
-        /// </summary>
-        /// <param name="dbSchemaFolderPath">the path to the folder that contains gauge schema files
-        /// (all files loaded in order to support plugins that may require their own tables)</param>
-        /// <exception cref="ArgumentNullException">databaseName is not specified</exception>
-        /// <exception cref="ArgumentNullException">dbSchemaFolderPath is not specified</exception>
-        /// <exception cref="ArgumentException">dbSchemaFolderPath contains one or more invalid characters 
-        /// as defined by InvalidPathChars.</exception>
-        /// <exception cref="PathTooLongException">The specified dbSchemaFolderPath, file name, or both exceed 
-        /// the system-defined maximum length. For example, on Windows-based platforms, 
-        /// paths must be less than 248 characters, and file names must be less than 260 characters.</exception>
-        /// <exception cref="DirectoryNotFoundException">The specified dbSchemaFolderPath is invalid 
-        /// (for example, it is on an unmapped drive).</exception>
-        /// <exception cref="IOException">An I/O error occurred while opening the file.</exception>
-        /// <exception cref="UnauthorizedAccessException">The caller does not have the required permission.</exception>
-        /// <exception cref="FileNotFoundException">The file specified in dbSchemaFolderPath was not found.</exception>
-        /// <exception cref="NotSupportedException">dbSchemaFolderPath is in an invalid format.</exception>
-        /// <exception cref="SecurityException">The caller does not have the required permission.</exception>
-        public async Task<List<DbSchemaError>> GetDbSchemaErrorsAsync(string dbSchemaFolderPath)
+        ISqlAgent ISqlAgent.GetCopy()
         {
-            var gaugeSchema = new DbSchema();
-            gaugeSchema.LoadXmlFolder(dbSchemaFolderPath);
-            if (gaugeSchema.Tables.Count < 1) throw new ArgumentException(Properties.Resources.SqlAgentBase_GaugeSchemaEmpty);
-            var actualSchema = await this.GetDbSchemaAsync();            
-            return this.GetDbSchemaErrors(gaugeSchema, actualSchema);
+            return GetCopy();
         }
-
-        /// <summary>
-        /// Compares the actualSchema definition to the gaugeSchema definition and returns
-        /// a list of DbSchema errors, i.e. inconsistencies found and SQL statements to repair them.
-        /// </summary>
-        /// <param name="gaugeSchema">the gauge schema definition to compare the actualSchema against</param>
-        /// <param name="actualSchema">the schema to check for inconsistencies (and repair)</param>
-        public abstract List<DbSchemaError> GetDbSchemaErrors(DbSchema gaugeSchema, DbSchema actualSchema);
-
-
-        /// <summary>
-        /// Gets an SQL script to create a database for the dbSchema specified.
-        /// </summary>
-        /// <param name="dbSchema">the database schema to get the create database script for</param>
-        public abstract string GetCreateDatabaseSql(DbSchema dbSchema);
-
-        /// <summary>
-        /// Creates a new database using DbSchema.
-        /// </summary>
-        /// <param name="databaseName">a name of the new database to create</param>
-        /// <param name="dbSchemaFolderPath">the path to the folder that contains gauge schema files
-        /// (all files loaded in order to support plugins that may require their own tables)</param>
-        /// <remarks>After creating a new database the <see cref="CurrentDatabase">CurrentDatabase</see>
-        /// property should be set to the new database name.</remarks>
-        /// <exception cref="ArgumentNullException">databaseName is not specified</exception>
-        /// <exception cref="ArgumentNullException">dbSchemaFolderPath is not specified</exception>
-        /// <exception cref="ArgumentException">dbSchemaFolderPath contains one or more invalid characters 
-        /// as defined by InvalidPathChars.</exception>
-        /// <exception cref="PathTooLongException">The specified dbSchemaFolderPath, file name, or both exceed 
-        /// the system-defined maximum length. For example, on Windows-based platforms, 
-        /// paths must be less than 248 characters, and file names must be less than 260 characters.</exception>
-        /// <exception cref="DirectoryNotFoundException">The specified dbSchemaFolderPath is invalid 
-        /// (for example, it is on an unmapped drive).</exception>
-        /// <exception cref="IOException">An I/O error occurred while opening the file.</exception>
-        /// <exception cref="UnauthorizedAccessException">The caller does not have the required permission.</exception>
-        /// <exception cref="FileNotFoundException">The file specified in dbSchemaFolderPath was not found.</exception>
-        /// <exception cref="NotSupportedException">dbSchemaFolderPath is in an invalid format.</exception>
-        /// <exception cref="SecurityException">The caller does not have the required permission.</exception>
-        public async Task CreateDatabaseAsync(string databaseName, string dbSchemaFolderPath)
-        {
-            if (databaseName.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(databaseName));
-            if (IsTransactionInProgress)
-                throw new InvalidOperationException(Properties.Resources.SqlAgentBase_CannotCreateDatabase);
-            var dbSchema = new DbSchema();
-            dbSchema.LoadXmlFolder(dbSchemaFolderPath);
-            await CreateDatabaseAsync(databaseName, dbSchema);
-        }
-
-        /// <summary>
-        /// A method that should do the actual new database creation.
-        /// </summary>
-        /// <param name="databaseName">a name of the new database to create</param>
-        /// <param name="dbSchema">a DbSchema to use for the new database</param>
-        /// <remarks>After creating a new database the <see cref="CurrentDatabase">CurrentDatabase</see>
-        /// property should be set to the new database name.</remarks>
-        protected abstract Task CreateDatabaseAsync(string databaseName, DbSchema dbSchema);
-
-        /// <summary>
-        /// Drops (deletes) the database specified.
-        /// </summary>
-        /// <param name="databaseName">the name of the database to drop</param>
-        public abstract Task DropDatabaseAsync(string databaseName);
-
-
-        /// <summary>
-        /// Creates a clone of the database using another SqlAgent.
-        /// </summary>
-        /// <param name="cloneDatabaseName">a name of the cone database to create</param>
-        /// <param name="cloneSqlAgent">an SQL agent to use when creating clone database</param>
-        /// <param name="schemaToUse">a database schema to use (enforce), 
-        /// if null the schema ir read from the database cloned</param>
-        /// <param name="worker">a BackgroundWorker to report the progress to (if used)</param>
-        public void CloneDatabase(string cloneDatabaseName, SqlAgentBase cloneSqlAgent,
-            DbSchema schemaToUse, System.ComponentModel.BackgroundWorker worker)
-        {
-
-            if (_currentDatabase.IsNullOrWhiteSpace()) 
-                throw new InvalidOperationException(Properties.Resources.SqlAgentBase_CurrentDatabaseNull);
-            if (cloneDatabaseName.IsNullOrWhiteSpace())
-                throw new ArgumentNullException(nameof(cloneDatabaseName));
-            if (cloneSqlAgent == null)
-                throw new ArgumentNullException(nameof(cloneSqlAgent));
-
-            if (worker != null)
-                worker.ReportProgress(0, Properties.Resources.SqlAgentBase_FetchingDatabaseSchema);
-
-            if (schemaToUse == null) schemaToUse = GetDbSchemaAsync().Result;
-
-            if (worker != null && worker.CancellationPending)
-            {
-                worker.ReportProgress(100, Properties.Resources.SqlAgentBase_DatabaseCloneCanceled);
-                throw new Exception(Properties.Resources.SqlAgentBase_DatabaseCloneCanceled);
-            }
-
-            if (worker != null)
-                worker.ReportProgress(0, Properties.Resources.SqlAgentBase_CreatingCloneDatabase);
-
-            cloneSqlAgent.CreateDatabaseAsync(cloneDatabaseName, schemaToUse).Wait();
-
-            if (worker != null && worker.CancellationPending)
-            {
-                worker.ReportProgress(100, Properties.Resources.SqlAgentBase_DatabaseCloneCanceledAfterCreate);
-                throw new Exception(Properties.Resources.SqlAgentBase_DatabaseCloneCanceledAfterCreate);
-            }
-
-            try
-            {
-
-                cloneSqlAgent.TransactionBeginAsync().Wait();
-
-                cloneSqlAgent.DisableForeignKeysForCurrentTransactionAsync().Wait();
-
-                this.CopyData(schemaToUse, cloneSqlAgent, worker);
-
-                cloneSqlAgent.TransactionCommit();
-
-                if (worker != null)
-                    worker.ReportProgress(100, Properties.Resources.SqlAgentBase_DatabaseCloneCompleted);
-
-            }
-            catch (Exception ex)
-            {
-                if (cloneSqlAgent.IsTransactionInProgress)
-                    cloneSqlAgent.TransactionRollback(ex);
-                throw;
-            }
-
-        }
-
-        /// <summary>
-        /// Copies table data from the current SqlAgent instance to the target SqlAgent instance.
-        /// </summary>
-        /// <param name="schema">a schema of the database to copy the data</param>
-        /// <param name="targetSqlAgent">the target SqlAgent to copy the data to</param>
-        /// <param name="worker">BackgroundWorker to report the progress to (if used)</param>
-        /// <remarks>Required for <see cref="CloneDatabase">CloneDatabase</see> infrastructure.
-        /// Basicaly iterates tables, selects data, creates an IDataReader for the table and passes it to the 
-        /// <see cref="InsertTableData">InsertTableData</see> method of the target SqlAgent.</remarks>
-        protected abstract void CopyData(DbSchema schema, SqlAgentBase targetSqlAgent,
-            System.ComponentModel.BackgroundWorker worker);
-
-        /// <summary>
-        /// Disables foreign key checks for the current transaction.
-        /// </summary>
-        /// <remarks>Required for <see cref="CloneDatabase">CloneDatabase</see> infrastructure.</remarks>
-        protected abstract Task DisableForeignKeysForCurrentTransactionAsync();
-
-        /// <summary>
-        /// Invokes protected <see cref="InsertTableData">InsertTableData</see>
-        /// method on target SqlAgent. Used to bypass cross instance protected method
-        /// access limitation.
-        /// </summary>
-        /// <param name="target">the SqlAgent to invoke the <see cref="InsertTableData">InsertTableData</see>
-        /// method on</param>
-        /// <param name="table">a schema of the table to insert the data to</param>
-        /// <param name="reader">an IDataReader to read the table data from</param>
-        /// <remarks>Required for <see cref="CloneDatabase">CloneDatabase</see> infrastructure.
-        /// The insert is performed using a transaction that is already initiated by the 
-        /// <see cref="CloneDatabase">CloneDatabase</see>.</remarks>
-        protected static async Task CallInsertTableDataAsync(SqlAgentBase target, DbTableSchema table, 
-            IDataReader reader)
-        {
-            await target.InsertTableDataAsync(table, reader);
-        }
-
-        /// <summary>
-        /// Inserts table data from the reader to the current SqlAgent instance,
-        /// </summary>
-        /// <param name="table">a schema of the table to insert the data to</param>
-        /// <param name="reader">an IDataReader to read the table data from.</param>
-        /// <remarks>Required for <see cref="CloneDatabase">CloneDatabase</see> infrastructure.
-        /// The insert is performed using a transaction that is already initiated by the 
-        /// <see cref="CloneDatabase">CloneDatabase</see>.</remarks>
-        protected abstract Task InsertTableDataAsync(DbTableSchema table, IDataReader reader);
-
 
         /// <summary>
         /// Gets an SQL query identified by the token for the specific SQL implementation sqlAgent.
@@ -757,111 +595,68 @@ namespace Apskaita5.DAL.Common
         /// <exception cref="InvalidOperationException">SQL query token is unknown.</exception>
         protected string GetSqlQuery(string token)
         {
-            return SqlDictionary.GetSqlQuery(token, this);
+            if (_sqlDictionary.IsNull()) throw new InvalidOperationException(Properties.Resources.SqlDictionaryNotConfiguredException);
+            return _sqlDictionary.GetSqlQuery(token, this);
+        }
+  
+        /// <summary>
+        /// Logs an exception (if a logger is used) and then thows it.
+        /// </summary>
+        /// <param name="ex">an exception to log and throw</param>
+        protected void LogAndThrow(Exception ex)
+        {
+            if (null == ex) LogAndThrow(new ArgumentNullException(nameof(ex)));
+            if (ex.GetType() == typeof(AggregateException))
+                ex = ((AggregateException)ex).Flatten().InnerExceptions[0];
+            _Logger?.LogError(ex, ex.Message, null);
+            throw ex;
         }
 
         /// <summary>
-        /// Gets a new instance of the SqlSchemaError for a repairable field level error.
+        /// Logs an exception (if a logger is used).
         /// </summary>
-        /// <param name="errorType">a type of the error (inconsistency)</param>
-        /// <param name="description">a description of the error (inconsistency) (must be specified)</param>
-        /// <param name="table">the name of the database table which field is inconsistent  (must be specified)</param>
-        /// <param name="field">the name of the database field that is inconsistent</param>
-        /// <param name="sqlStatementsToRepair">a collection of the SQL statements 
-        /// that should be issued to repair the error (must be specified)</param>
-        /// <exception cref="ArgumentNullException">Error description is not specified.</exception>
-        /// <exception cref="ArgumentNullException">Error table is not specified.</exception>
-        /// <exception cref="ArgumentNullException">SQL statements to repair the error is not specified.</exception>
-        /// <exception cref="ArgumentException">No SQL statement could be empty.</exception>
-        protected DbSchemaError GetDbSchemaError(DbSchemaErrorType errorType, string description, 
-            string table, string field, string[] sqlStatementsToRepair)
+        /// <param name="ex">an exception to log</param>
+        protected void Log(Exception ex)
         {
-            return new DbSchemaError(errorType,description,table,field,sqlStatementsToRepair);
+            if (null == ex) LogAndThrow(new ArgumentNullException(nameof(ex)));
+            if (ex.GetType() == typeof(AggregateException))
+                ex = ((AggregateException)ex).Flatten().InnerExceptions[0];
+            _Logger?.LogError(ex, ex.Message, null);
         }
 
-        /// <summary>
-        /// Gets a new instance of the SqlSchemaError for a repairable table level error.
-        /// </summary>
-        /// <param name="errorType">a type of the error (inconsistency)</param>
-        /// <param name="description">a description of the error (inconsistency) (must be specified)</param>
-        /// <param name="table">the name of the database table which schema is inconsistent  (must be specified)</param>
-        /// <param name="sqlStatementsToRepair">a collection of the SQL statements 
-        /// that should be issued to repair the error (must be specified)</param>
-        /// <exception cref="ArgumentNullException">Error description is not specified.</exception>
-        /// <exception cref="ArgumentNullException">Error table is not specified.</exception>
-        /// <exception cref="ArgumentNullException">SQL statements to repair the error is not specified.</exception>
-        /// <exception cref="ArgumentException">No SQL statement could be empty.</exception>
-        protected DbSchemaError GetDbSchemaError(DbSchemaErrorType errorType, string description, 
-            string table, string[] sqlStatementsToRepair)
-        {
-            return new DbSchemaError(errorType, description, table, sqlStatementsToRepair);
-        }
+        #region IDisposable Support
 
-        /// <summary>
-        /// Gets a new instance of the SqlSchemaError for a repairable database level error.
-        /// </summary>
-        /// <param name="errorType">a type of the error (inconsistency)</param>
-        /// <param name="description">a description of the error (inconsistency) (must be specified)</param>
-        /// <param name="sqlStatementsToRepair">a collection of the SQL statements 
-        /// that should be issued to repair the error (must be specified)</param>
-        /// <exception cref="ArgumentNullException">Error description is not specified.</exception>
-        /// <exception cref="ArgumentNullException">Error table is not specified.</exception>
-        /// <exception cref="ArgumentNullException">SQL statements to repair the error is not specified.</exception>
-        /// <exception cref="ArgumentException">No SQL statement could be empty.</exception>
-        protected DbSchemaError GetDbSchemaError(DbSchemaErrorType errorType, string description, 
-            string[] sqlStatementsToRepair)
-        {
-            return new DbSchemaError(errorType,description,sqlStatementsToRepair);
-        }
+        private bool disposedValue = false; // To detect redundant calls
 
-        /// <summary>
-        /// Gets a new instance of the SqlSchemaError for an unrepairable error.
-        /// </summary>
-        /// <param name="errorType">a type of the error (inconsistency)</param>
-        /// <param name="description">a description of the error (inconsistency) (must be specified)</param>
-        /// <param name="table">the name of the database table which field is inconsistent</param>
-        /// <param name="field">the name of the database field that is inconsistent</param>
-        /// <exception cref="ArgumentNullException">Error description is not specified.</exception>
-        protected DbSchemaError GetUnrepairableDbSchemaError(DbSchemaErrorType errorType, 
-            string description, string table, string field)
+        private void Dispose(bool disposing)
         {
-            return new DbSchemaError(errorType, description, table, field);
-        }
-
-        /// <summary>
-        /// Gets a parameter name for a parameter at the index (position) specified.
-        /// </summary>
-        /// <param name="index">the zero based index (position) of the parameter</param>
-        /// <remarks>Infrastructure for insert statement generation.</remarks>
-        protected static string GetParameterName(int index)
-        {
-
-            if (_paramDictionary == null)
+            if (!disposedValue)
             {
-
-                _paramDictionary = new List<string>();
-                for (int i = 1; i <= 400; i++)
+                if (disposing)
                 {
-                    _paramDictionary.Add(ParamLetters[(int)Math.Ceiling((i / 24.0) - 1)]
-                        + ParamLetters[i - (int)(Math.Ceiling((i / 24.0) - 1) * 24 + 1)]);
+                    // TODO: dispose managed state (managed objects).
+                    DisposeManagedState();
                 }
-                _paramDictionary.Remove("AS");
-                _paramDictionary.Remove("BY");
-                _paramDictionary.Remove("IF");
-                _paramDictionary.Remove("IN");
-                _paramDictionary.Remove("IS");
-                _paramDictionary.Remove("ON");
-                _paramDictionary.Remove("OR");
-                _paramDictionary.Remove("TO");
 
+                // TODO: free unmanaged resources (unmanaged objects) and override a finalizer below.
+                // TODO: set large fields to null.
+
+                disposedValue = true;
             }
-
-            if (index < 0 || index + 1 > _paramDictionary.Count())
-                throw new IndexOutOfRangeException();
-
-            return _paramDictionary[index];
-
         }
+
+        // This code added to correctly implement the disposable pattern.
+        public void Dispose()
+        {
+            // Do not change this code. Put cleanup code in Dispose(bool disposing) above.
+            Dispose(true);
+            // TODO: uncomment the following line if the finalizer is overridden above.
+            // GC.SuppressFinalize(this);
+        }
+
+        protected abstract void DisposeManagedState();            
+
+        #endregion
 
     }
 }

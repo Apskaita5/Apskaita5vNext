@@ -2,8 +2,9 @@
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using Apskaita5.DAL.Common.TypeConverters;
 
-namespace Apskaita5.DAL.Common
+namespace Apskaita5.DAL.Common.DbSchema
 {
     /// <summary>
     /// Represents a canonical database table field specification.
@@ -21,6 +22,7 @@ namespace Apskaita5.DAL.Common
         private bool _unsigned = true;
         private string _enumValues = string.Empty;
         private string _description = string.Empty;
+        private DbFieldCollationType _collationType = DbFieldCollationType.Default;
         private DbIndexType _indexType = DbIndexType.None;
         private string _indexName = string.Empty;
         private DbForeignKeyActionType _onUpdateForeignKey = DbForeignKeyActionType.Cascade;
@@ -35,7 +37,7 @@ namespace Apskaita5.DAL.Common
         public string Name
         {
             get { return _name; }
-            set { _name = value.NotNullValue(); }
+            set { _name = value?.Trim() ?? string.Empty; }
         }
 
         /// <summary>
@@ -94,7 +96,7 @@ namespace Apskaita5.DAL.Common
         public string EnumValues
         {
             get { return _enumValues; }
-            set { _enumValues = value.NotNullValue(); }
+            set { _enumValues = value?.Trim() ?? string.Empty; }
         }
 
         /// <summary>
@@ -103,7 +105,16 @@ namespace Apskaita5.DAL.Common
         public string Description
         {
             get { return _description; }
-            set { _description = value.NotNullValue(); }
+            set { _description = value?.Trim() ?? string.Empty; }
+        }
+
+        /// <summary>
+        /// Gets or sets a collation type of the database table field.
+        /// </summary>
+        public DbFieldCollationType CollationType
+        {
+            get { return _collationType; }
+            set { _collationType = value; }
         }
 
         /// <summary>
@@ -126,7 +137,7 @@ namespace Apskaita5.DAL.Common
         public string IndexName
         {
             get { return _indexName; }
-            set { _indexName = value.NotNullValue(); }
+            set { _indexName = value?.Trim() ?? string.Empty; }
         }
 
         /// <summary>
@@ -159,7 +170,7 @@ namespace Apskaita5.DAL.Common
         public string RefTable
         {
             get { return _refTable; }
-            set{ _refTable = value.NotNullValue(); }
+            set{ _refTable = value?.Trim() ?? string.Empty; }
         }
 
         /// <summary>
@@ -168,7 +179,7 @@ namespace Apskaita5.DAL.Common
         public string RefField
         {
             get { return _refField; }
-            set{ _refField = value.NotNullValue(); }
+            set{ _refField = value?.Trim() ?? string.Empty; }
         }
 
 
@@ -184,21 +195,21 @@ namespace Apskaita5.DAL.Common
 
             if (source.IsNullOrWhiteSpace())
                 throw new ArgumentNullException(nameof(source));
-            if (fieldDelimiter == null || fieldDelimiter.Length < 1)
+            if (null == fieldDelimiter || fieldDelimiter.Length < 1)
                 throw new ArgumentNullException(nameof(fieldDelimiter));
 
             _name = source.GetDelimitedField(0, fieldDelimiter);
-            _dataType = source.GetDelimitedField(1, fieldDelimiter).ParseEnum(DbDataType.Char);
-            _length = source.GetDelimitedField(2, fieldDelimiter).ParseInt(255);
-            _notNull = source.GetDelimitedField(3, fieldDelimiter).ParseBoolean(true);
-            _autoincrement = source.GetDelimitedField(4, fieldDelimiter).ParseBoolean(false);
-            _unsigned = source.GetDelimitedField(5, fieldDelimiter).ParseBoolean(true);
+            _dataType = source.GetDelimitedField(1, fieldDelimiter).GetEnumOrDefault(DbDataType.Char);
+            _length = source.GetDelimitedField(2, fieldDelimiter).GetInt32OrDefault(255);
+            _notNull = source.GetDelimitedField(3, fieldDelimiter).GetBooleanOrDefault(true);
+            _autoincrement = source.GetDelimitedField(4, fieldDelimiter).GetBooleanOrDefault(false);
+            _unsigned = source.GetDelimitedField(5, fieldDelimiter).GetBooleanOrDefault(true);
             _enumValues = source.GetDelimitedField(6, fieldDelimiter);
             _description = source.GetDelimitedField(7, fieldDelimiter);
-            _indexType = source.GetDelimitedField(8, fieldDelimiter).ParseEnum(DbIndexType.None);
+            _indexType = source.GetDelimitedField(8, fieldDelimiter).GetEnumOrDefault(DbIndexType.None);
             _indexName = source.GetDelimitedField(9, fieldDelimiter);
-            _onUpdateForeignKey = source.GetDelimitedField(10, fieldDelimiter).ParseEnum(DbForeignKeyActionType.Cascade);
-            _onDeleteForeignKey = source.GetDelimitedField(11, fieldDelimiter).ParseEnum(DbForeignKeyActionType.Restrict);
+            _onUpdateForeignKey = source.GetDelimitedField(10, fieldDelimiter).GetEnumOrDefault(DbForeignKeyActionType.Cascade);
+            _onDeleteForeignKey = source.GetDelimitedField(11, fieldDelimiter).GetEnumOrDefault(DbForeignKeyActionType.Restrict);
 
         }
 
@@ -220,9 +231,11 @@ namespace Apskaita5.DAL.Common
             if (_autoincrement && _dataType.IsDbDataTypeInteger()) result = result + " AUTOINCREMENT";
             
             if (_indexType == DbIndexType.Primary) result = result + " PRIMARY KEY";
+            if (_collationType == DbFieldCollationType.ASCII_Binary) result = result + " COLLATE ascii_bin";
+            else if (_collationType == DbFieldCollationType.ASCII_CaseInsensitive) result = result + " COLLATE ascii_ci";
             if (_indexType == DbIndexType.Simple) result = string.Format("{0} INDEX {1}", result, _indexName);
             if (_indexType == DbIndexType.Unique) result = string.Format("{0} UNIQUE INDEX {1}", result, _indexName);
-            if (_indexType == DbIndexType.ForeignKey) result = string.Format(
+            if (_indexType == DbIndexType.ForeignKey || _indexType == DbIndexType.ForeignPrimary) result = string.Format(    
                 "{0} FOREIGN KEY {1} REFERENCES {2}({3}) ON UPDATE {4} ON DELETE {5}",
                 result, _indexName, _refTable, _refField, _onUpdateForeignKey.ToString().ToUpperInvariant(),
                 _onDeleteForeignKey.ToString().ToUpperInvariant());
@@ -262,10 +275,10 @@ namespace Apskaita5.DAL.Common
             if (_indexType != DbIndexType.None && _indexType != DbIndexType.Primary  && _indexName.IsNullOrWhiteSpace())
                 GetOrCreateErrorList(nameof(IndexName), result).Add(Properties.Resources.DbFieldSchema_IndexNameNull);
 
-            if (_indexType == DbIndexType.ForeignKey && _refTable.IsNullOrWhiteSpace())
+            if ((_indexType == DbIndexType.ForeignKey || _indexType == DbIndexType.ForeignPrimary) && _refTable.IsNullOrWhiteSpace())
                 GetOrCreateErrorList(nameof(RefTable), result).Add(Properties.Resources.DbFieldSchema_RefTableNull);
 
-            if (_indexType == DbIndexType.ForeignKey && _refField.IsNullOrWhiteSpace())
+            if ((_indexType == DbIndexType.ForeignKey || _indexType == DbIndexType.ForeignPrimary) && _refField.IsNullOrWhiteSpace())
                 GetOrCreateErrorList(nameof(RefField), result).Add(Properties.Resources.DbFieldSchema_RefFieldNull);
 
             return result;
@@ -288,14 +301,28 @@ namespace Apskaita5.DAL.Common
 
             if (dict.Count() < 1) return string.Empty;
 
-            var result = new List<string>();
-
-            result.Add(string.Format(Properties.Resources.DbFieldSchema_ErrorStringHeader, _name, _dataType.ToString(), _length.ToString()));
+            var result = new List<string>
+            {
+                string.Format(Properties.Resources.DbFieldSchema_ErrorStringHeader, _name, _dataType.ToString(), _length.ToString())
+            };
 
             result.AddRange(dict.SelectMany(entry => entry.Value));
 
             return string.Join(Environment.NewLine, result.ToArray());
 
+        }
+
+        /// <summary>
+        /// Sets index names so that they are unique per database.
+        /// Name format for foreign keys is table_field_fk.
+        /// Name format for other indexes is table_field_idx.
+        /// </summary>
+        public void SetSafeIndexName(string tableName)
+        {
+            if (_indexType == DbIndexType.ForeignKey || _indexType == DbIndexType.ForeignPrimary)
+                _indexName = string.Format("{0}_{1}_fk", tableName.Trim().ToLower(), _name.Trim().ToLower());
+            if (_indexType == DbIndexType.Simple || _indexType == DbIndexType.Unique)
+                _indexName = string.Format("{0}_{1}_idx", tableName.Trim().ToLower(), _name.Trim().ToLower());
         }
 
 

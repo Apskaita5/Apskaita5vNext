@@ -68,11 +68,11 @@ namespace DeveloperUtils
 
         private static SqlAgentBase CreateSqlAgentInt(Type instanceType)
         {
-            if (instanceType == null)
+            if (null == instanceType)
                 throw new ArgumentNullException("instanceType");
 
             return (SqlAgentBase)Activator.CreateInstance(instanceType,
-                "connString", "", false);
+                "connString", "", null, null);
         }
 
         private static Type GetType(Assembly assembly, string typeName)
@@ -104,12 +104,14 @@ namespace DeveloperUtils
                 }
             }
 
+            row.DataGridView.InvalidateRow(row.Index);
+
         }
 
         internal static DataTable ToDataTable(this LightDataTable source)
         {
             
-            if (source == null) return null;
+            if (ReferenceEquals(source, null)) return null;
 
             var result = new DataTable(source.TableName);
 

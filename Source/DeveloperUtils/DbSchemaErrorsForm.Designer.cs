@@ -104,7 +104,7 @@
             // 
             // bindingSource1
             // 
-            this.bindingSource1.DataSource = typeof(Apskaita5.DAL.Common.DbSchemaError);
+            this.bindingSource1.DataSource = typeof(Apskaita5.DAL.Common.DbSchema.DbSchemaError);
             // 
             // dataGridView1
             // 

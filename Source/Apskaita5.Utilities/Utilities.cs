@@ -277,11 +277,10 @@ namespace Apskaita5.Common
         public static string GetDelimitedField(this string line, int fieldIndex, string fieldDelimiter)
         {
 
-            if (fieldDelimiter == null || string.IsNullOrEmpty(fieldDelimiter.Trim()))
+            if (null == fieldDelimiter || fieldDelimiter.Length < 1)
                 throw new ArgumentNullException(nameof(fieldDelimiter));
 
-            if (line == null || string.IsNullOrEmpty(line.Trim()))
-                return string.Empty;
+            if (line.IsNullOrWhiteSpace()) return string.Empty;
 
             var result = line.Split(new string[] { fieldDelimiter }, StringSplitOptions.None);
 
@@ -297,18 +296,7 @@ namespace Apskaita5.Common
         /// <param name="value">a string value to evaluate</param>
         public static bool IsNullOrWhiteSpace(this string value)
         {
-            return (value == null || string.IsNullOrEmpty(value.Trim()));
-        }
-
-        /// <summary>
-        /// Returns string.Empty if the value is null, otherwise returns value.
-        /// </summary>
-        /// <param name="value">a string value to evaluate</param>
-        /// <returns>string.Empty if the value is null, otherwise - value</returns>
-        public static string NotNullValue(this string value)
-        {
-            if (value == null) return string.Empty;
-            return value;
+            return (null == value || string.IsNullOrEmpty(value.Trim()));
         }
 
         /// <summary>
@@ -382,8 +370,8 @@ namespace Apskaita5.Common
         /// <returns>True if the string values are the same.</returns>
         public static bool EqualsTo(this string source, string stringToCompare, bool ignoreCase)
         {
-            if (source == null && stringToCompare == null) return true;
-            if (source == null || stringToCompare == null) return false;
+            if (null == source && null == stringToCompare) return true;
+            if (null == source || null == stringToCompare) return false;
             if (ignoreCase)
             {
                 return source.Trim().Equals(stringToCompare.Trim(), StringComparison.OrdinalIgnoreCase);
@@ -404,10 +392,10 @@ namespace Apskaita5.Common
         public static string WriteToXml<T>(T objectToSerialize, Encoding encoding)
         {
 
-            if (!objectToSerialize.GetType().IsValueType && objectToSerialize == null)
+            if (!objectToSerialize.GetType().IsValueType && ReferenceEquals(objectToSerialize, null))
                 throw new ArgumentNullException(nameof(objectToSerialize));
 
-            if (encoding == null) encoding = new UTF8Encoding(false);
+            if (null == encoding) encoding = new UTF8Encoding(false);
 
             var xmlSerializer = new XmlSerializer(typeof(T));
 

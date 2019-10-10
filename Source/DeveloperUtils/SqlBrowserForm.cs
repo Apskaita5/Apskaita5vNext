@@ -1,10 +1,11 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
 using System.Data;
 using System.Windows.Forms;
 using Apskaita5.DAL.Common;
 using Apskaita5.Common;
+using System.Threading.Tasks;
+using System.Threading;
+using Apskaita5.DAL.Common.DbSchema;
 
 namespace DeveloperUtils
 {
@@ -64,7 +65,7 @@ namespace DeveloperUtils
             }
         }
 
-        private void executeButton_Click(object sender, EventArgs e)
+        private async void executeButton_Click(object sender, EventArgs e)
         {
 
             if (this.queryTextBox.Text.IsNullOrWhiteSpace())
@@ -75,6 +76,11 @@ namespace DeveloperUtils
 
             DataTable result = null;
 
+            var currentCursor = this.Cursor;
+            this.Cursor = Cursors.WaitCursor;
+            this.executeButton.Enabled = false;
+            var currentTime = DateTime.Now;
+
             try
             {
                 if (this.queryTextBox.Text.Trim().ToLower().StartsWith("select ") ||
@@ -82,12 +88,13 @@ namespace DeveloperUtils
                     this.queryTextBox.Text.Trim().ToLower().StartsWith("explain ") ||
                     this.queryTextBox.Text.Trim().ToLower().StartsWith("pragma "))
                 {
-                    var data = _agent.FetchTableRawAsync(this.queryTextBox.Text, null).Result;
+                    var data = await Task.Run(async () => 
+                        await _agent.FetchTableRawAsync(this.queryTextBox.Text, null, CancellationToken.None));
                     result = data.ToDataTable();
                 }
                 else if (this.queryTextBox.Text.Trim().ToLower().StartsWith("insert "))
                 {
-                    var data = _agent.ExecuteInsertRawAsync(this.queryTextBox.Text, null).Result;
+                    var data = await Task.Run(async () => await _agent.ExecuteInsertRawAsync(this.queryTextBox.Text, null));
                     result = new DataTable();
                     result.Columns.Add("Last Insert ID");
                     result.Rows.Add();
@@ -95,7 +102,7 @@ namespace DeveloperUtils
                 }
                 else
                 {
-                    var data = _agent.ExecuteInsertRawAsync(this.queryTextBox.Text, null).Result;
+                    var data = await Task.Run(async () => await _agent.ExecuteInsertRawAsync(this.queryTextBox.Text, null));
                     result = new DataTable();
                     result.Columns.Add("Affected Rows");
                     result.Rows.Add();
@@ -105,9 +112,14 @@ namespace DeveloperUtils
             }
             catch (Exception ex)
             {
+                this.Cursor = currentCursor;
+                this.executeButton.Enabled = true;
                 MessageBox.Show(ex.Message, "", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
+
+            this.Cursor = currentCursor;
+            this.executeButton.Enabled = true;
 
             if (this.resultDataGridView.DataSource != null)
             {
@@ -117,17 +129,23 @@ namespace DeveloperUtils
 
             this.resultDataGridView.DataSource = result;
 
+            if (DateTime.Now.Subtract(currentTime).TotalSeconds > 3)
+                MessageBox.Show(string.Format("Fetch took {0} seconds.", DateTime.Now.Subtract(currentTime).TotalSeconds),
+                    "Operation time", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
         }
 
         private void openStructureButton_Click(object sender, EventArgs e)
         {
             if (_schema == null) return;
-            Form childForm = new DbSchemaForm(_schema, _agent.CurrentDatabase);
-            childForm.MdiParent = this.MdiParent;
+            Form childForm = new DbSchemaForm(_schema, _agent.CurrentDatabase)
+            {
+                MdiParent = this.MdiParent
+            };
             childForm.Show();
         }
 
-        private void refreshSchemaButton_Click(object sender, EventArgs e)
+        private async void refreshSchemaButton_Click(object sender, EventArgs e)
         {
 
             if (_agent.CurrentDatabase.IsNullOrWhiteSpace())
@@ -136,15 +154,25 @@ namespace DeveloperUtils
                 return;
             }
 
+            var currentCursor = this.Cursor;
+            this.Cursor = Cursors.WaitCursor;
+            this.refreshSchemaButton.Enabled = false;
+            var currentTime = DateTime.Now;
+
             try
             {
-                _schema = _agent.GetDbSchemaAsync().Result;
+                _schema = await Task.Run(async () => await _agent.GetDefaultSchemaManager().GetDbSchemaAsync(CancellationToken.None));                
             }
             catch (Exception ex)
             {
+                this.Cursor = currentCursor;
+                this.refreshSchemaButton.Enabled = true;
                 MessageBox.Show(ex.Message, "", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
+
+            this.Cursor = currentCursor;
+            this.refreshSchemaButton.Enabled = true;
 
             structureTreeView.Nodes.Clear();
 
@@ -158,6 +186,11 @@ namespace DeveloperUtils
                     currentFieldNode.ToolTipText = field.GetDefinition();
                 }
             }
+
+            if (DateTime.Now.Subtract(currentTime).TotalSeconds > 3)
+                MessageBox.Show(string.Format("Schema fetch took {0} seconds.", 
+                    DateTime.Now.Subtract(currentTime).TotalSeconds),
+                    "Operation time", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
         }
 

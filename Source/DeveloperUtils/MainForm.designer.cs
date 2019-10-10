@@ -41,6 +41,8 @@
             this.loginSQLServerToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.sQLBrowserToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.cloneDatabaseToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.checkStructureErrorsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.dBBatchInsertToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.tools_MenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.xsdValidation_MenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.sqlGeneratorToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -66,7 +68,7 @@
             this.statusStrip = new System.Windows.Forms.StatusStrip();
             this.toolStripStatusLabel = new System.Windows.Forms.ToolStripStatusLabel();
             this.toolTip = new System.Windows.Forms.ToolTip(this.components);
-            this.checkStructureErrorsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.createDBToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.menuStrip.SuspendLayout();
             this.toolStrip.SuspendLayout();
             this.statusStrip.SuspendLayout();
@@ -139,7 +141,9 @@
             this.loginSQLServerToolStripMenuItem,
             this.sQLBrowserToolStripMenuItem,
             this.cloneDatabaseToolStripMenuItem,
-            this.checkStructureErrorsToolStripMenuItem});
+            this.checkStructureErrorsToolStripMenuItem,
+            this.dBBatchInsertToolStripMenuItem,
+            this.createDBToolStripMenuItem});
             this.sQLToolsToolStripMenuItem.Name = "sQLToolsToolStripMenuItem";
             this.sQLToolsToolStripMenuItem.Size = new System.Drawing.Size(83, 20);
             this.sQLToolsToolStripMenuItem.Text = "SQL Queries";
@@ -164,6 +168,20 @@
             this.cloneDatabaseToolStripMenuItem.Size = new System.Drawing.Size(191, 22);
             this.cloneDatabaseToolStripMenuItem.Text = "Clone Database";
             this.cloneDatabaseToolStripMenuItem.Click += new System.EventHandler(this.cloneDatabaseToolStripMenuItem_Click);
+            // 
+            // checkStructureErrorsToolStripMenuItem
+            // 
+            this.checkStructureErrorsToolStripMenuItem.Name = "checkStructureErrorsToolStripMenuItem";
+            this.checkStructureErrorsToolStripMenuItem.Size = new System.Drawing.Size(191, 22);
+            this.checkStructureErrorsToolStripMenuItem.Text = "Check Structure Errors";
+            this.checkStructureErrorsToolStripMenuItem.Click += new System.EventHandler(this.checkStructureErrorsToolStripMenuItem_Click);
+            // 
+            // dBBatchInsertToolStripMenuItem
+            // 
+            this.dBBatchInsertToolStripMenuItem.Name = "dBBatchInsertToolStripMenuItem";
+            this.dBBatchInsertToolStripMenuItem.Size = new System.Drawing.Size(191, 22);
+            this.dBBatchInsertToolStripMenuItem.Text = "DB batch insert";
+            this.dBBatchInsertToolStripMenuItem.Click += new System.EventHandler(this.dBBatchInsertToolStripMenuItem_Click);
             // 
             // tools_MenuItem
             // 
@@ -314,7 +332,6 @@
             // openToolStripButton
             // 
             this.openToolStripButton.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
-            this.openToolStripButton.Enabled = false;
             this.openToolStripButton.Image = ((System.Drawing.Image)(resources.GetObject("openToolStripButton.Image")));
             this.openToolStripButton.ImageTransparentColor = System.Drawing.Color.Black;
             this.openToolStripButton.Name = "openToolStripButton";
@@ -378,12 +395,12 @@
             this.toolStripStatusLabel.Size = new System.Drawing.Size(39, 17);
             this.toolStripStatusLabel.Text = "Status";
             // 
-            // checkStructureErrorsToolStripMenuItem
+            // createDBToolStripMenuItem
             // 
-            this.checkStructureErrorsToolStripMenuItem.Name = "checkStructureErrorsToolStripMenuItem";
-            this.checkStructureErrorsToolStripMenuItem.Size = new System.Drawing.Size(191, 22);
-            this.checkStructureErrorsToolStripMenuItem.Text = "Check Structure Errors";
-            this.checkStructureErrorsToolStripMenuItem.Click += new System.EventHandler(this.checkStructureErrorsToolStripMenuItem_Click);
+            this.createDBToolStripMenuItem.Name = "createDBToolStripMenuItem";
+            this.createDBToolStripMenuItem.Size = new System.Drawing.Size(191, 22);
+            this.createDBToolStripMenuItem.Text = "Create DB";
+            this.createDBToolStripMenuItem.Click += new System.EventHandler(this.createDBToolStripMenuItem_Click);
             // 
             // MainForm
             // 
@@ -449,6 +466,8 @@
         private System.Windows.Forms.ToolStripMenuItem sQLBrowserToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem cloneDatabaseToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem checkStructureErrorsToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem dBBatchInsertToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem createDBToolStripMenuItem;
     }
 }
 

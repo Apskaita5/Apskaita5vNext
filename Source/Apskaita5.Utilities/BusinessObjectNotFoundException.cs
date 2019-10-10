@@ -11,13 +11,10 @@ namespace Apskaita5.Common
     public class BusinessObjectNotFoundException : Exception
     {
 
-        private long _NotFoundId;
-
-
         /// <summary>
         /// Gets an id of the object that was requested but not found.
         /// </summary>
-        public long NotFoundId => _NotFoundId;
+        public long NotFoundId { get; }
         
 
         private BusinessObjectNotFoundException() : base() { }
@@ -31,7 +28,7 @@ namespace Apskaita5.Common
         /// <param name="objectId">an id of the object that was requested but not found</param>
         public BusinessObjectNotFoundException(string message, long objectId) : base(message)
         {
-            _NotFoundId = objectId;
+            NotFoundId = objectId;
         }
 
     }

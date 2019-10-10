@@ -132,6 +132,18 @@
   <data name="ApplicationRoleSchema_RoleNameNull" xml:space="preserve">
     <value>Role name is not specified.</value>
   </data>
+  <data name="CannotConvertToDictionaryException" xml:space="preserve">
+    <value>Cannot convert SqlRepository to Dictionary due to duplicate tokens:{0}</value>
+  </data>
+  <data name="CannotMergeToDictionaryException" xml:space="preserve">
+    <value>Cannot merge SqlRepository to Dictionary due to duplicate tokens:{0}</value>
+  </data>
+  <data name="DbEntityContextNotFoundException" xml:space="preserve">
+    <value>Initialization context for type '{0}' was not found. Query: '{1}'. Parameters: {2}</value>
+  </data>
+  <data name="DbEntityNotFoundException" xml:space="preserve">
+    <value>Entity of type '{0}' with id '{1}' was not found in the database.</value>
+  </data>
   <data name="DbFieldSchema_AutoincrementInvalid" xml:space="preserve">
     <value>Cannot autoincrement non integer value.</value>
   </data>
@@ -165,14 +177,38 @@
   <data name="DbSchemaError_EmptySqlStatementInList" xml:space="preserve">
     <value>No SQL statement could be empty.</value>
   </data>
+  <data name="DbSchemaFolderDoesNotExistException" xml:space="preserve">
+    <value>DB schema folder '{0}' does not exist.</value>
+  </data>
+  <data name="DbSchema_BaseSchema" xml:space="preserve">
+    <value>base schema</value>
+  </data>
+  <data name="DbSchema_BaseSchemaNotFound" xml:space="preserve">
+    <value>No base schema found.</value>
+  </data>
   <data name="DbSchema_ErrorStringHeader" xml:space="preserve">
     <value>Data errors for database:</value>
   </data>
   <data name="DbSchema_ErrorStringTablesHeader" xml:space="preserve">
     <value>Data errors for tables:</value>
   </data>
+  <data name="DbSchema_Extension" xml:space="preserve">
+    <value>extension</value>
+  </data>
+  <data name="DbSchema_GuidInvalid" xml:space="preserve">
+    <value>Guid string is invalid.</value>
+  </data>
+  <data name="DbSchema_InvalidGuidForSchema" xml:space="preserve">
+    <value>Invalid Guid for schema: {0}.</value>
+  </data>
+  <data name="DbSchema_MultipleBaseSchemas" xml:space="preserve">
+    <value>Multiple base schemas found.</value>
+  </data>
   <data name="DbSchema_TableListEmpty" xml:space="preserve">
     <value>Database has no tables.</value>
+  </data>
+  <data name="DbSchema_TableNameClash" xml:space="preserve">
+    <value>Table {0} for extension {1} clashes with a table for {2}</value>
   </data>
   <data name="DbTableSchema_ErrorStringFieldsHeader" xml:space="preserve">
     <value>Data errors for table {0} fields:</value>
@@ -189,11 +225,20 @@
   <data name="DbTableSchema_TableNameNull" xml:space="preserve">
     <value>Table name is not specified.</value>
   </data>
+  <data name="DuplicateTokensInRepositoryException" xml:space="preserve">
+    <value>Duplicate tokens in SqlRepository file '{0}'. {1}</value>
+  </data>
   <data name="FileNotFound" xml:space="preserve">
     <value>File {0} not found.</value>
   </data>
   <data name="IndexValueOutOfRange" xml:space="preserve">
     <value>Index value {0} was out of column list range.</value>
+  </data>
+  <data name="InitQueryTokenNullException" xml:space="preserve">
+    <value>Initialization query token is not set for type '{0}'.</value>
+  </data>
+  <data name="InvalidSqlRepositoryFileFormatException" xml:space="preserve">
+    <value>File '{0}' format is invalid: {1}</value>
   </data>
   <data name="LightDataColumnCollection_CannotAddColumnToReadOnlyCollection" xml:space="preserve">
     <value>Columns cannot be added to a readonly collection. (The collection is readonly when any row is added to the parent table.)</value>
@@ -237,6 +282,9 @@
   <data name="LightDataRow_ColumnDoesNotBelongToTable" xml:space="preserve">
     <value>The column does not belong to this table.</value>
   </data>
+  <data name="LightDataRow_ColumnDoesNotExist" xml:space="preserve">
+    <value>Column named "{0}" does not exist in the datatable.</value>
+  </data>
   <data name="LightDataRow_ColumnNotFoundByName" xml:space="preserve">
     <value>The column specified by columnName cannot be found.</value>
   </data>
@@ -251,6 +299,9 @@
   </data>
   <data name="LightDataRow_DataTypeMismatch" xml:space="preserve">
     <value>The data types of the value and the column do not match.</value>
+  </data>
+  <data name="LightDataRow_DataTypeMismatchException" xml:space="preserve">
+    <value>Data of type {0} cannot be assigned to LightDataColumn of type {1}.</value>
   </data>
   <data name="LightDataRow_EnumStringValueInvalid" xml:space="preserve">
     <value>Enum {0} value for string code {1} is not defined.</value>
@@ -267,11 +318,26 @@
   <data name="LightDataRow_TableHasNoColumns" xml:space="preserve">
     <value>Parent table has no columns.</value>
   </data>
+  <data name="MicroOrmIsNotSupportedByTypeException" xml:space="preserve">
+    <value>Type {0} does not support micro ORM functionality.</value>
+  </data>
+  <data name="NoFieldMapsForMicroOrmException" xml:space="preserve">
+    <value>Type {0} has no micro ORM field mappings.</value>
+  </data>
   <data name="NoFieldsInString" xml:space="preserve">
     <value>Source string contains no fields.</value>
   </data>
   <data name="NoFilesInFolder" xml:space="preserve">
     <value>The XML file folder specified ({0}) contains no XML files.</value>
+  </data>
+  <data name="SchemaManagerRequiresDatabaseException" xml:space="preserve">
+    <value>SqlAgent has no database assigned.</value>
+  </data>
+  <data name="SqlAgentAndOrmServiceTypeMismatchException" xml:space="preserve">
+    <value>Sql agent implemention id '{0}' does not match Orm service implementation id '{1}'.</value>
+  </data>
+  <data name="SqlAgentAndSchemaManagerTypeMismatchException" xml:space="preserve">
+    <value>Sql agent implemention id '{0}' does not match schema manager implementation id '{1}'.</value>
   </data>
   <data name="SqlAgentBase_CannotChangeDatabase" xml:space="preserve">
     <value>Cannot change database while a transaction is in progress.</value>
@@ -309,6 +375,12 @@
   <data name="SqlAgentBase_NoTransactionToRollback" xml:space="preserve">
     <value>No transaction to rollback.</value>
   </data>
+  <data name="SqlDictionaryNotAvailableException" xml:space="preserve">
+    <value>SQL query dictionary is not available for SQL implementation {0}.</value>
+  </data>
+  <data name="SqlDictionaryNotConfiguredException" xml:space="preserve">
+    <value>SQL dictionary is not configured.</value>
+  </data>
   <data name="SqlDictionary_DuplicateTokensInRepository" xml:space="preserve">
     <value>Failed to load file {0} due to duplicate query token {1}.</value>
   </data>
@@ -326,5 +398,20 @@
   </data>
   <data name="SqlDictionary_UnknownSqlQueryToken" xml:space="preserve">
     <value>SQL query token {0} is unknown.</value>
+  </data>
+  <data name="TypeConverters_EnumNumericValueInvalid" xml:space="preserve">
+    <value>Int32 value {0} is not defined for enumeration type {1}.</value>
+  </data>
+  <data name="TypeConverters_EnumStringValueInvalid" xml:space="preserve">
+    <value>String value "{0}" is not defined for enumeration type {1}.</value>
+  </data>
+  <data name="TypeConverters_InvalidFormatException" xml:space="preserve">
+    <value>Type {0} cannot be converted to type (1) (value.ToString() = {2}).</value>
+  </data>
+  <data name="TypeConverters_OverflowException" xml:space="preserve">
+    <value>Numeric value {0} cannot be convrted to type {1} because it is out of value ranges for the type.</value>
+  </data>
+  <data name="TypeConverters_ValueIsNotEnumeration" xml:space="preserve">
+    <value>Type {0} is not an enumeration.</value>
   </data>
 </root>

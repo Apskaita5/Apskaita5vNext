@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ArrayOfSqlRepositoryItem xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+ <SqlRepositoryItem>
+  <Token>InsertAccount</Token>
+  <Query>INSERT INTO accounts(id, balance_and_income_line_id, account_name, account_type, inserted_at, inserted_by, updated_at, updated_by) VALUES (?AA, null, ?AB, 0, ?AC, 'test user', ?AC, 'test user');</Query>
+  <UsedByTypes>TestTransaction</UsedByTypes>
+ </SqlRepositoryItem>
+ <SqlRepositoryItem>
+  <Token>InsertTransaction</Token>
+  <Query>INSERT INTO transactions(document_id, transaction_date, description) VALUES(?AA, ?AB, '');</Query>
+  <UsedByTypes>TestTransaction</UsedByTypes>
+ </SqlRepositoryItem>
+ <SqlRepositoryItem>
+  <Token>InsertEntry4</Token>
+  <Query>INSERT INTO general_ledger_entries(transaction_id, account_id, amount_debit, amount_credit) VALUES(?AA, ?AB, ?AC, ?AD);</Query>
+  <UsedByTypes>TestTransaction</UsedByTypes>
+ </SqlRepositoryItem>
+ <SqlRepositoryItem>
+  <Token>InsertEntry3</Token>
+  <Query>INSERT INTO general_ledger_entries(transaction_id, account_id, amount) VALUES(?AA, ?AB, ?AC);</Query>
+  <UsedByTypes>TestTransaction</UsedByTypes>
+ </SqlRepositoryItem>
+ <SqlRepositoryItem>
+  <Token>InsertEntry2</Token>
+  <Query>INSERT INTO general_ledger_entries(transaction_id, account_id, is_debit, amount) VALUES(?AA, ?AB, ?AC, ?AD);</Query>
+  <UsedByTypes>TestTransaction</UsedByTypes>
+ </SqlRepositoryItem>
+ <SqlRepositoryItem>
+  <Token>InsertEntry1</Token>
+  <Query>INSERT INTO ledger_entries(transaction_id, account_id, entry_type, amount) VALUES(?AA, ?AB, ?AC, ?AD);</Query>
+  <UsedByTypes>TestTransaction</UsedByTypes>
+ </SqlRepositoryItem>
+ <SqlRepositoryItem>
+  <Token>InsertDocument</Token>
+  <Query>INSERT INTO documents(document_date, document_no, description, document_comments, internal_comments, document_type, extended_document_type_id, external_id, inserted_at, inserted_by, updated_at, updated_by) VALUES(?AA, ?AB, ?AC, '', '', ?AD, null, '', ?AE, 'test user', ?AE, 'test user');</Query>
+  <UsedByTypes>TestTransaction</UsedByTypes>
+ </SqlRepositoryItem>
+</ArrayOfSqlRepositoryItem>

@@ -1,5 +1,5 @@
 ﻿
-namespace Apskaita5.DAL.Common
+namespace Apskaita5.DAL.Common.DbSchema
 {
     /// <summary>
     /// Represents a canonical database index type.
@@ -11,7 +11,8 @@ namespace Apskaita5.DAL.Common
         Primary = 1,
         Unique = 2,
         Simple = 3,
-        ForeignKey = 4
+        ForeignKey = 4,
+        ForeignPrimary =5
 
     }
 }

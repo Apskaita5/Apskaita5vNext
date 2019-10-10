@@ -1,0 +1,237 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <!-- 
+    Microsoft ResX Schema 
+    
+    Version 2.0
+    
+    The primary goals of this format is to allow a simple XML format 
+    that is mostly human readable. The generation and parsing of the 
+    various data types are done through the TypeConverter classes 
+    associated with the data types.
+    
+    Example:
+    
+    ... ado.net/XML headers & schema ...
+    <resheader name="resmimetype">text/microsoft-resx</resheader>
+    <resheader name="version">2.0</resheader>
+    <resheader name="reader">System.Resources.ResXResourceReader, System.Windows.Forms, ...</resheader>
+    <resheader name="writer">System.Resources.ResXResourceWriter, System.Windows.Forms, ...</resheader>
+    <data name="Name1"><value>this is my long string</value><comment>this is a comment</comment></data>
+    <data name="Color1" type="System.Drawing.Color, System.Drawing">Blue</data>
+    <data name="Bitmap1" mimetype="application/x-microsoft.net.object.binary.base64">
+        <value>[base64 mime encoded serialized .NET Framework object]</value>
+    </data>
+    <data name="Icon1" type="System.Drawing.Icon, System.Drawing" mimetype="application/x-microsoft.net.object.bytearray.base64">
+        <value>[base64 mime encoded string representing a byte array form of the .NET Framework object]</value>
+        <comment>This is a comment</comment>
+    </data>
+                
+    There are any number of "resheader" rows that contain simple 
+    name/value pairs.
+    
+    Each data row contains a name, and value. The row also contains a 
+    type or mimetype. Type corresponds to a .NET class that support 
+    text/value conversion through the TypeConverter architecture. 
+    Classes that don't support this are serialized and stored with the 
+    mimetype set.
+    
+    The mimetype is used for serialized objects, and tells the 
+    ResXResourceReader how to depersist the object. This is currently not 
+    extensible. For a given mimetype the value must be set accordingly:
+    
+    Note - application/x-microsoft.net.object.binary.base64 is the format 
+    that the ResXResourceWriter will generate, however the reader can 
+    read any of the formats listed below.
+    
+    mimetype: application/x-microsoft.net.object.binary.base64
+    value   : The object must be serialized with 
+            : System.Runtime.Serialization.Formatters.Binary.BinaryFormatter
+            : and then encoded with base64 encoding.
+    
+    mimetype: application/x-microsoft.net.object.soap.base64
+    value   : The object must be serialized with 
+            : System.Runtime.Serialization.Formatters.Soap.SoapFormatter
+            : and then encoded with base64 encoding.
+
+    mimetype: application/x-microsoft.net.object.bytearray.base64
+    value   : The object must be serialized into a byte array 
+            : using a System.ComponentModel.TypeConverter
+            : and then encoded with base64 encoding.
+    -->
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="CannotAddNewNotNullFieldException" xml:space="preserve">
+    <value>Cannot add new NOT NULL column of type {0} because {0} type does not have default value.</value>
+  </data>
+  <data name="CannotOpenConnectionException" xml:space="preserve">
+    <value>Cannot open SQLite connection without a database specified.</value>
+  </data>
+  <data name="CannotStartTransactionException" xml:space="preserve">
+    <value>Cannot create a transaction while another transaction is in progress.</value>
+  </data>
+  <data name="CreateDatabaseExceptionTransactionInProgress" xml:space="preserve">
+    <value>Cannot create a database while there is a transaction in progress.</value>
+  </data>
+  <data name="DatabaseCreateExceptionNoTables" xml:space="preserve">
+    <value>Database schema should contain at least one table.</value>
+  </data>
+  <data name="DbSchemaErrorExceptionFieldMismatch" xml:space="preserve">
+    <value>Cannot compare fields with diferent names.</value>
+  </data>
+  <data name="DbSchemaErrorsExceptionCannotGetInTransaction" xml:space="preserve">
+    <value>Cannot get schema errors while a transaction is in progress.</value>
+  </data>
+  <data name="DbSchemaExceptionCannotGetInTransaction" xml:space="preserve">
+    <value>Cannot get schema while a transaction is in progress.</value>
+  </data>
+  <data name="DbSchemaExceptionDatabaseNull" xml:space="preserve">
+    <value>Database is not set, cannot get schema.</value>
+  </data>
+  <data name="DisableForeignKeysExceptionTransactionNull" xml:space="preserve">
+    <value>Command DisableForeignKeysForCurrentTransactionAsync can only be invoked within an active transaction.</value>
+  </data>
+  <data name="DropDatabaseExceptionTransactionInProgress" xml:space="preserve">
+    <value>Cannot drop database while transaction is in progress.</value>
+  </data>
+  <data name="EnumValueNotImplementedException" xml:space="preserve">
+    <value>Enum value {0} is not implemented.</value>
+  </data>
+  <data name="FieldMissingErrorDescription" xml:space="preserve">
+    <value>Field {0} in table {1} missing.</value>
+  </data>
+  <data name="FieldMissingUnreparableErrorDescription" xml:space="preserve">
+    <value>Field {0} in table {1} missing. Cannot add new NOT NULL column for BLOB type in SQLite.</value>
+  </data>
+  <data name="FieldObsoleteErrorDescription" xml:space="preserve">
+    <value>Table {0} field {1} schema definition is obsolete: current definition - {2}; gauge definition - {3}. SQLite does not support field schema changes.</value>
+  </data>
+  <data name="FieldRedundantUnreparableErrorDescription" xml:space="preserve">
+    <value>Field {0} in table {1} is redundant. Change is not supported by SQLite.</value>
+  </data>
+  <data name="FieldsEmptyException" xml:space="preserve">
+    <value>Fields cannot be empty.</value>
+  </data>
+  <data name="IndexMissingErrorDescription" xml:space="preserve">
+    <value>Index {0} missing on table {1} field {2}.</value>
+  </data>
+  <data name="IndexObsoleteErrorDescription" xml:space="preserve">
+    <value>Index {0} type is obsolete on table {1} field {2}.</value>
+  </data>
+  <data name="IndexObsoleteUnreparableErrorDescription" xml:space="preserve">
+    <value>Index {0} type is obsolete on table {1} field {2}. Change is not supported by SQLite.</value>
+  </data>
+  <data name="IndexRedundantErrorDescription" xml:space="preserve">
+    <value>Index {0} type is redundant on table {1} field {2}.</value>
+  </data>
+  <data name="InvalidInternalExecuteParamException" xml:space="preserve">
+    <value>Generic parameter type {0} is not supported by SQLiteAgent.ExecuteCommandInt.</value>
+  </data>
+  <data name="InvalidTransactionTypeException" xml:space="preserve">
+    <value>Type {0} is not a valid SQLite transaction.</value>
+  </data>
+  <data name="ManualRollbackException" xml:space="preserve">
+    <value>Manual rollback.</value>
+  </data>
+  <data name="NativeTypeNotImplementedException" xml:space="preserve">
+    <value>SQLite database data type {0} is unknown.</value>
+  </data>
+  <data name="NoBatchInTransactionException" xml:space="preserve">
+    <value>Cannot execute batch while a transaction is in progress.</value>
+  </data>
+  <data name="NoDefaultEnumValueException" xml:space="preserve">
+    <value>Failed to find the default enum value.</value>
+  </data>
+  <data name="NonSqlExceptionDescription" xml:space="preserve">
+    <value>Exception of type '{0}', message: {1}</value>
+  </data>
+  <data name="NoTransactionToCommitException" xml:space="preserve">
+    <value>No transactiion to commit.</value>
+  </data>
+  <data name="QueryTokenEmptyException" xml:space="preserve">
+    <value>Query token cannot be empty.</value>
+  </data>
+  <data name="SqlExceptionDatabaseNotFound" xml:space="preserve">
+    <value>SQLite database file {0} not found: {1}</value>
+  </data>
+  <data name="SqlExceptionMessage" xml:space="preserve">
+    <value>SQLite returned an exception: ErrorCode={0}; HResult={1}; Message='{2}'</value>
+  </data>
+  <data name="SqlExceptionMessageRollbackFailed" xml:space="preserve">
+    <value>WARNING. Critical SQL transaction error, failed to rollback the transaction.{4}SQLite returned an exception: ErrorCode={0}; HResult={1}; Message='{2}'{3}Initial exception that caused the rollback:{3}{4}{3}SQL statement/query that caused the exception:{3}{5}</value>
+  </data>
+  <data name="SqlExceptionMessageWithStatement" xml:space="preserve">
+    <value>SQLite returned an exception: ErrorCode={0}; HResult={1}; Message='{2}'{3}SQL statement/query that caused the exception:{3}{4} </value>
+  </data>
+  <data name="SqlExceptionPasswordInvalid" xml:space="preserve">
+    <value>Password is invalid or SQLite file corrupted.</value>
+  </data>
+  <data name="SqlExceptionUnknownException" xml:space="preserve">
+    <value>Unknown exception occured while opening SQLite connection: {0}</value>
+  </data>
+  <data name="StatementsEmptyException" xml:space="preserve">
+    <value>At least one statement should be non empty.</value>
+  </data>
+  <data name="TableMissingErrorDescription" xml:space="preserve">
+    <value>Table {0} missing.</value>
+  </data>
+  <data name="TableObsoleteErrorDescription" xml:space="preserve">
+    <value>Table {0} is obsolete.</value>
+  </data>
+</root>

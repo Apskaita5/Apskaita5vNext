@@ -1,9 +1,9 @@
 ﻿using System;
-using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Xml;
 using System.Xml.Serialization;
+using Apskaita5.DAL.Common.DbSchema;
 
 namespace Apskaita5.DAL.Common
 {
@@ -95,11 +95,10 @@ namespace Apskaita5.DAL.Common
         internal static string GetDelimitedField(this string line, int fieldIndex, string fieldDelimiter)
         {
 
-            if (fieldDelimiter == null || fieldDelimiter.Length < 1)
+            if (null == fieldDelimiter || fieldDelimiter.Length < 1)
                 throw new ArgumentNullException(nameof(fieldDelimiter));
 
-            if (line == null || string.IsNullOrEmpty(line.Trim()))
-                return string.Empty;
+            if (line.IsNullOrWhiteSpace()) return string.Empty;
 
             var result = line.Split(new string[] { fieldDelimiter }, StringSplitOptions.None);
 
@@ -115,87 +114,67 @@ namespace Apskaita5.DAL.Common
         /// <param name="value">a string value to evaluate</param>
         internal static bool IsNullOrWhiteSpace(this string value)
         {
-            return (value == null || string.IsNullOrEmpty(value.Trim()));
+            return (null == value || string.IsNullOrEmpty(value.Trim()));
         }
 
         /// <summary>
-        /// Returns string.Empty if the value is null, otherwise returns value.
+        /// Returns a value indicating that the object (value) is null. Required due to potential operator overloadings
+        /// that cause unpredictable behaviour of standard null == value test.
         /// </summary>
-        /// <param name="value">a string value to evaluate</param>
-        /// <returns>string.Empty if the value is null, otherwise - value</returns>
-        internal static string NotNullValue(this string value)
+        /// <typeparam name="T">a type of the object to test</typeparam>
+        /// <param name="value">an object to test against null</param>
+        internal static bool IsNull<T>(this T value) where T : class
         {
-            if (value == null) return string.Empty;
-            return value;
+            return ReferenceEquals(value, null) || DBNull.Value == value;
         }
 
 
         /// <summary>
-        /// Tries to parse source string as an integer and returns the result if succeeds,
-        /// otherwise returns the defaultValue.
+        /// Gets a description of SQL statement/query parameters.
         /// </summary>
-        /// <param name="source">the string value to parse</param>
-        /// <param name="defaultValue">a default integer value to return if the parse fails</param>
-        internal static int ParseInt(this string source, int defaultValue)
+        /// <param name="parameters">the SQL statement/query parameters to get a description for</param>
+        public static string GetDescription(this SqlParam[] parameters)
         {
-            try
-            {
-                return int.Parse(source, NumberStyles.Any, CultureInfo.InvariantCulture);
-            }
-            catch (Exception)
-            {
-                return defaultValue;
-            }
+            if (null == parameters || parameters.Length < 1) return "null";
+            return string.Join("; ", parameters.Select(p => p.ToString()).ToArray());
         }
 
         /// <summary>
-        /// Tries to parse source string as an enum value and returns the result if succeeds,
-        /// otherwise returns the defaultValue.
+        /// Gets a formated name of database object (field, table, index) using formatting
+        /// policy defined by an SqlAgent.
         /// </summary>
-        /// <param name="source">the string value to parse</param>
-        /// <param name="defaultValue">a default enum value to return if the parse fails</param>
-        internal static T ParseEnum<T>(this string source, T defaultValue)
+        /// <param name="unformatedName">unformatted name of the database object</param>
+        /// <param name="sqlAgent">an SqlAgent that defines naming convention</param>
+        public static string ToConventional(this string unformatedName, ISqlAgent sqlAgent)
         {
-            
-            if (source.IsNullOrWhiteSpace()) return defaultValue;
-            
-            try
-            {
-                return (T)Enum.Parse(typeof(T), source);
-            }
-            catch (Exception)
-            {
-
-                if (int.TryParse(source, NumberStyles.Any, CultureInfo.InvariantCulture, out int intValue))
-                {
-                    if (Enum.IsDefined(typeof(T), intValue)) return (T)(object)intValue;
-                }
-
-                return defaultValue;
-
-            }
-
+            if (sqlAgent.IsNull()) throw new ArgumentNullException(nameof(sqlAgent));
+            if (unformatedName.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(unformatedName));
+            if (sqlAgent.AllSchemaNamesLowerCased) return unformatedName.Trim().ToLower();
+            return unformatedName.Trim();
         }
 
         /// <summary>
-        /// Tries to parse source string as a boolean and returns the result if succeeds,
-        /// otherwise returns the defaultValue.
+        /// Compares database object (field, table, index) names. As the changing object names is
+        /// not implemented, it's always case insensitive comparison (Trim + OrdinalIgnoreCase).
         /// </summary>
-        /// <param name="source">the string value to parse</param>
-        /// <param name="defaultValue">a default boolean value to return if the parse fails</param>
-        internal static bool ParseBoolean(this string source, bool defaultValue)
+        /// <param name="source">value to compare</param>
+        /// <param name="valueToCompare">value to compare against</param>
+        public static bool EqualsByConvention(this string source, string valueToCompare)
         {
-            if (source.IsNullOrWhiteSpace()) return defaultValue;
+            return (source?.Trim() ?? string.Empty).Equals(valueToCompare?.Trim() ?? string.Empty, 
+                StringComparison.OrdinalIgnoreCase);
+        }
 
-            if (source.Trim().ToUpperInvariant() == "TRUE") return true;
-
-            if (source.Trim().ToUpperInvariant() == "FALSE") return false;
-
-            if (int.TryParse(source, NumberStyles.Any, CultureInfo.InvariantCulture, out int intValue))
-                return (intValue != 0);
-
-            return defaultValue;
-
+        /// <summary>
+        /// Returns a value indicating whether a specified substring occures within the string, 
+        /// it's always case insensitive comparison (Trim + OrdinalIgnoreCase).
+        /// </summary>
+        /// <param name="source">value to compare</param>
+        /// <param name="substring">value to compare against</param>
+        public static bool ContainsByConvention(this string source, string substring)
+        {
+            return (source ?? string.Empty).IndexOf(substring?.Trim() ?? string.Empty,
+                StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
     }

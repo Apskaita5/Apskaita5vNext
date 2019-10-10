@@ -3,10 +3,13 @@ using System.Collections.Generic;
 using System.Data;
 using System.Linq;
 using MySql.Data.MySqlClient;
-using System.ComponentModel;
 using Apskaita5.DAL.Common;
 using System.Threading.Tasks;
 using System.Threading;
+using Microsoft.Extensions.Logging;
+using Apskaita5.DAL.Common.DbSchema;
+using Apskaita5.DAL.Common.MicroOrm;
+using static Apskaita5.DAL.MySql.Constants;
 
 namespace Apskaita5.DAL.MySql
 {
@@ -18,65 +21,151 @@ namespace Apskaita5.DAL.MySql
     public class MySqlAgent : SqlAgentBase
     {
 
+        #region Constants
+
         private const string AgentName = "MySql connector";
         private const bool AgentIsFileBased = false;
         private const string AgentRootName = "root";
-        private const string AgentSqlRepositoryFileNamePrefix = "mysql_";
         private const string AgentWildcart = "%";
-        private const string ParamPrefix = "?";
-        private const string DefaultEngine = "InnoDB";
-        private const string DefaultCharset = "utf8";
 
-        private string _engine = DefaultEngine;
-        private string _charset = DefaultCharset;
+        #endregion
 
-        private static AsyncLocal<MySqlTransaction> asyncTransaction = new AsyncLocal<MySqlTransaction>();
-        private MySqlTransaction instanceTransaction = null;
+        #region Properties
 
-
+        /// <summary>
+        /// Gets a value indicationg whether an SQL transation is in progress.
+        /// </summary>
+        public override bool IsTransactionInProgress => (CurrentTransaction != null);
 
         /// <summary>
         /// Gets a name of the SQL implementation behind the SqlAgent, i. e. MySql connector.
         /// </summary>
-        public override string Name
-        {
-            get { return AgentName; }
-        }
+        public override string Name => AgentName;
+
+        /// <summary>
+        /// Gets an id of the concrete SQL implementation, i.e. mysql.
+        /// The id is used to select an appropriate SQL token dictionary.
+        /// </summary>
+        public override string SqlImplementationId => MySqlImplementationId;
 
         /// <summary>
         /// Gets a value indicationg whether the SQL engine is file based, i.e. false.
         /// </summary>
-        public override bool IsFileBased
-        {
-            get { return AgentIsFileBased; }
-        }
+        public override bool IsFileBased => AgentIsFileBased;
 
         /// <summary>
         /// Gets a name of the root user as defined in the SQL implementation behind the SqlAgent, i.e. root.
         /// </summary>
-        public override string RootName
-        {
-            get { return AgentRootName; }
-        }
-
-        /// <summary>
-        /// Gets a prefix of the names of the files that contain SQL queries written 
-        /// for the SQL implementation behind the SqlAgent, i.e. mysql_.
-        /// All XML files with this prefix is loaded into SQL dictionary at runtime. 
-        /// It is needed in order to support various plugin repositories.
-        /// </summary>
-        public override string SqlRepositoryFileNamePrefix
-        {
-            get { return AgentSqlRepositoryFileNamePrefix; }
-        }
+        public override string RootName => AgentRootName;
 
         /// <summary>
         /// Gets a simbol used as a wildcart for the SQL implementation behind the SqlAgent, i.e. %.
         /// </summary>
-        public override string Wildcart
+        public override string Wildcart => AgentWildcart;
+
+        #endregion
+
+
+        /// <summary>
+        /// Initializes a new MySqlAgent instance.
+        /// </summary>
+        /// <param name="baseConnectionString">a connection string to use to connect to
+        /// a database (should not include database parameter that is added by the
+        /// SqlAgent implementation depending on the database chosen, should include password
+        /// (if any), password replacement (if needed) should be handled by the user class)</param>
+        /// <param name="databaseName">a name of the database to use (if any)</param>
+        /// <param name="sqlDictionary">an implementation of SQL dictionary to use (if any)</param>
+        /// <param name="logger">a logger to log errors and warnings (if any)</param>
+        public MySqlAgent(string baseConnectionString, string databaseName, ISqlDictionary sqlDictionary, ILogger logger)
+            : base(baseConnectionString, false, databaseName, sqlDictionary, logger)
         {
-            get { return AgentWildcart; }
+            if (logger != null)
+            {
+                MySqlTrace.Switch.Level = System.Diagnostics.SourceLevels.Warning;
+                MySqlTrace.Listeners.Add(new MySqlTraceListener(logger, this));
+            }            
         }
+
+        /// <summary>
+        /// Clones a MySqlAgent instance.
+        /// </summary>
+        /// <param name="agentToClone">a MySqlAgent instance to clone</param>
+        private MySqlAgent(MySqlAgent agentToClone) : base(agentToClone) { }
+
+
+        /// <summary>
+        /// Tries to open connection. If fails, throws an exception.
+        /// </summary>
+        public override async Task TestConnectionAsync()
+        {
+            using (var result = await OpenConnectionAsync().ConfigureAwait(false))
+            {
+                await result.CloseAsync().ConfigureAwait(false);
+            }
+        }
+
+        /// <summary>
+        /// Checks if the <see cref="CurrentDatabase"/> exists.
+        /// </summary>
+        /// <param name="cancellationToken">a cancelation token (if any)</param>
+        /// <returns>True if the database exists.</returns>
+        public override async Task<bool> DatabaseExistsAsync(CancellationToken cancellationToken)
+        {
+
+            if (CurrentDatabase.IsNullOrWhitespace()) throw new InvalidOperationException(Properties.Resources.CurrentDatabaseNullException);
+
+            using (var conn = await OpenConnectionAsync(true).ConfigureAwait(false))
+            {
+                var table = await ExecuteCommandIntAsync<LightDataTable>(conn, 
+                    string.Format("SHOW DATABASES LIKE '{0}';", CurrentDatabase.Trim()), null, 
+                    cancellationToken).ConfigureAwait(false);
+                return (table.Rows.Count > 0);
+            }                   
+
+        }
+
+        /// <summary>
+        /// Checks if the <see cref="CurrentDatabase"/> is empty, i.e. contains no tables.
+        /// </summary>
+        /// <param name="cancellationToken">a cancelation token (if any)</param>
+        /// <returns>True if the database contains any tables.</returns>
+        public override async Task<bool> DatabaseEmptyAsync(CancellationToken cancellationToken)
+        {
+
+            if (CurrentDatabase.IsNullOrWhitespace()) throw new InvalidOperationException(Properties.Resources.CurrentDatabaseNullException);
+
+            using (var conn = await OpenConnectionAsync().ConfigureAwait(false))
+            {
+                var table = await ExecuteCommandIntAsync<LightDataTable>(conn, 
+                    string.Format("SHOW TABLES FROM `{0}`;", CurrentDatabase.Trim()), null, cancellationToken).ConfigureAwait(false);
+                await conn.CloseAsync();
+                return (table.Rows.Count < 1);
+            }                   
+
+        }
+
+        /// <summary>
+        /// Gets a default database schema manager (to create or drop database schema, extract schema,
+        /// check for schema errors against gauge schema)
+        /// </summary>
+        public override ISchemaManager GetDefaultSchemaManager() => new MySqlSchemaManager(this);
+
+        /// <summary>
+        /// Gets a default micro ORM service.
+        /// </summary>
+        public override IOrmService GetDefaultOrmService() => new MySqlOrmService(this);
+
+        /// <summary>
+        /// Gets a clean copy (i.e. only connection data, not connection itself) of the SqlAgent instance 
+        /// in order to reuse instance data.
+        /// </summary>
+        public override SqlAgentBase GetCopy() => new MySqlAgent(this);
+
+        #region Transactions
+
+        private static AsyncLocal<MySqlTransaction> asyncTransaction = new AsyncLocal<MySqlTransaction>();
+        private MySqlTransaction instanceTransaction = null;
+
 
         private MySqlTransaction CurrentTransaction
         {
@@ -88,100 +177,64 @@ namespace Apskaita5.DAL.MySql
             set
             {
                 if (UseTransactionPerInstance) instanceTransaction = value;
-                asyncTransaction.Value = value;
+                else asyncTransaction.Value = value;
             }
         }
 
-        /// <summary>
-        /// Gets a value indicationg whether an SQL transation is in progress.
-        /// </summary>
-        public override bool IsTransactionInProgress
-        {
-            get { return CurrentTransaction != null; }
-        }
-
-        /// <summary>
-        /// Gets or sets the SQL engine to use when creating a database. (default - InnoDB)
-        /// </summary>
-        public string Engine
-        {
-            get { return _engine; }
-            set
-            {
-                if (value == null)
-                {
-                    _engine = string.Empty;
-                }
-                else
-                {
-                    _engine = value.Trim();
-                }
-            }
-        }
-
-        /// <summary>
-        /// Gets or sets the default charset to use when creating a database. (default - utf8)
-        /// </summary>
-        public string Charset
-        {
-            get { return _charset; }
-            set
-            {
-                if (value == null)
-                {
-                    _charset = string.Empty;
-                }
-                else
-                {
-                    _charset = value.Trim();
-                }
-            }
-        }
-
-
-        /// <summary>
-        /// Initializes a new MySqlAgent instance.
-        /// </summary>
-        /// <param name="baseConnectionString">a connection string to use to connect to
-        /// a database (should not include database parameter that is added by the
-        /// SqlAgent implementation depending on the database chosen, should include password
-        /// (if any), password replacement (if needed) should be handled by the user class)</param>
-        /// <param name="sqlRepositoryPath">a path to the folder with the the files that contain SQL repositories</param>
-        /// <param name="sqlTokensUsed">whether the user class is going to use SQL query tokens
-        /// i.e. sqlRepositoryPath is required</param>
-        public MySqlAgent(string baseConnectionString, string sqlRepositoryPath, bool sqlTokensUsed)
-            : base(baseConnectionString, false, sqlRepositoryPath, sqlTokensUsed) { }
-
-
-        /// <summary>
-        /// Gets a clean copy (i.e. only connection data, not connection itself) of the SqlAgent instance 
-        /// in order to reuse instance data.
-        /// </summary>
-        protected override SqlAgentBase GetCopyInt()
-        {
-            var sqlTokensUsed = (this.SqlRepositoryPath != null && !string.IsNullOrEmpty(this.SqlRepositoryPath.Trim()));
-            return new MySqlAgent(_baseConnectionString, this.SqlRepositoryPath, sqlTokensUsed);
-        }
-
-        /// <summary>
-        /// Tries to open connection. If fails, throws an exception.
-        /// </summary>
-        public override async Task TestConnectionAsync()
-        {
-            using (var result = await OpenConnectionAsync())
-            {
-                await result.CloseAsync();    
-            }
-        }
 
         /// <summary>
         /// Starts a new transaction.
         /// </summary>
+        /// <param name="cancellationToken">a cancelation token (if any)</param>
         /// <exception cref="InvalidOperationException">if transaction is already in progress</exception>
-        protected override async Task TransactionBeginAsync()
+        protected override async Task<object> TransactionBeginAsync(CancellationToken cancellationToken)
         {
-            var result = await OpenConnectionAsync();
-            CurrentTransaction = await result.BeginTransactionAsync();
+
+            if (IsTransactionInProgress) throw new InvalidOperationException(Properties.Resources.CannotStartTransactionException);
+
+            var connection = await OpenConnectionAsync();
+
+            try
+            {
+                var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+                // no point in setting AsyncLocal as it will be lost on exit
+                // should use method RegisterTransactionForAsyncContext in the transaction method
+                if (UseTransactionPerInstance) instanceTransaction = transaction;
+                return transaction;
+            }
+            catch (Exception)
+            {
+                if (!connection.IsNull() && connection.State != ConnectionState.Closed)
+                {
+                    try { await connection.CloseAsync().ConfigureAwait(false); }
+                    catch (Exception) { }
+                }
+                if (!connection.IsNull())
+                {
+                    try { connection.Dispose(); }
+                    catch (Exception) { }
+                }
+                throw;
+            }
+            
+        }
+
+        /// <summary>
+        /// As the TransactionBeginAsync method is Async, AsyncLocal value is lost outside of it's context
+        /// and needs to be set in the context of the invoking method.
+        /// </summary>
+        /// <param name="transaction">a transaction that has been initiated by the TransactionBeginAsync method</param>
+        protected override void RegisterTransactionForAsyncContext(object transaction)
+        {
+
+            if (UseTransactionPerInstance) return;
+
+            if (transaction.IsNull()) throw new ArgumentNullException(nameof(transaction));
+
+            var typedTransaction = transaction as MySqlTransaction;
+            asyncTransaction.Value = typedTransaction ?? throw new ArgumentException(string.Format(
+                Properties.Resources.InvalidTransactionType, transaction.GetType().FullName), nameof(transaction));
+
         }
 
         /// <summary>
@@ -190,6 +243,8 @@ namespace Apskaita5.DAL.MySql
         /// <exception cref="InvalidOperationException">if no transaction in progress</exception>
         protected override void TransactionCommit()
         {
+
+            if (!IsTransactionInProgress) throw new InvalidOperationException(Properties.Resources.NoTransactionToCommitException);
 
             try
             {
@@ -204,11 +259,10 @@ namespace Apskaita5.DAL.MySql
                 }
                 catch (Exception e)
                 {
-                    throw new Exception(string.Format("Critical SQL transaction error, failed to rollback the transaction.{0}Commit exception: {1}{2}Rollback exception: {3}",
-                        Environment.NewLine, ex.Message, Environment.NewLine, e.Message), ex);
+                    LogAndThrow(ex.WrapSqlException("COMMIT", e));
                 }
 
-                throw;
+                LogAndThrow(ex.WrapSqlException("COMMIT"));
 
             }
             finally
@@ -230,46 +284,68 @@ namespace Apskaita5.DAL.MySql
             }
             catch (Exception e)
             {
-                if (ex == null)
-                {
-                    throw new Exception(string.Format("Critical SQL transaction error, failed to rollback the transaction.{0}{1}",
-                        Environment.NewLine, e.Message));
-                }
-                else
-                {
-                    throw new Exception(string.Format("Critical SQL transaction error, failed to rollback the transaction.{0}Initial exception: {1}{2}Rollback exception: {3}",
-                        Environment.NewLine, ex.Message, Environment.NewLine, e.Message), ex);   
-                }
-            }
-            finally
-            {
                 CleanUpTransaction();
+                LogAndThrow((ex ?? new Exception(Properties.Resources.ManualRollbackException)).WrapSqlException("ROLLBACK", e));                
             }
+
+            CleanUpTransaction();
 
             if (ex != null) throw ex;
+        }
+
+        private void CleanUpTransaction()
+        {
+
+            if (!IsTransactionInProgress) return;
+
+            if (!CurrentTransaction.Connection.IsNull())
+            {
+
+                if (CurrentTransaction.Connection.State == ConnectionState.Open)
+                {
+                    try { CurrentTransaction.Connection.Close(); }
+                    catch (Exception){}
+                }
+
+                try { CurrentTransaction.Connection.Dispose(); }
+                catch (Exception) { }
+
+            }
+
+            try { CurrentTransaction.Dispose(); }
+            catch (Exception) { }
+
+            CurrentTransaction = null;
 
         }
+
+        #endregion
+
+        #region CRUD Methods
 
         /// <summary>
         /// Fetches data using SQL query token in the SQL repository.
         /// </summary>
         /// <param name="token">a token of the SQL query in the SQL repository</param>
         /// <param name="parameters">a collection of the SQL query parameters 
-        /// (null or empty array for none)</param>
+        /// (null or empty array for none)</param> 
+        /// <param name="cancellationToken">a cancelation token (if any)</param>
         /// <returns>a <see cref="LightDataTable">LightDataTable</see> that contains
         /// data returned by the SQL query.</returns>
-        public override async Task<LightDataTable> FetchTableAsync(string token, SqlParam[] parameters)
+        public override async Task<LightDataTable> FetchTableAsync(string token, SqlParam[] parameters, 
+            CancellationToken cancellationToken)
         {
 
-            if (token == null || string.IsNullOrEmpty(token.Trim())) throw new ArgumentNullException(nameof(token));
+            if (token.IsNullOrWhitespace()) throw new ArgumentNullException(nameof(token));
 
             if (this.IsTransactionInProgress)
-                return await ExecuteCommandIntAsync<LightDataTable>(null, CurrentTransaction, 
-                    GetSqlQuery(token), parameters);
+                return await ExecuteCommandIntAsync<LightDataTable>(null, GetSqlQuery(token), parameters, 
+                    cancellationToken).ConfigureAwait(false);
 
-            using (var conn = await OpenConnectionAsync())
+            using (var conn = await OpenConnectionAsync().ConfigureAwait(false))
             {
-                return await ExecuteCommandIntAsync<LightDataTable>(conn, null, GetSqlQuery(token), parameters);
+                return await ExecuteCommandIntAsync<LightDataTable>(conn, GetSqlQuery(token), parameters, 
+                    cancellationToken).ConfigureAwait(false);
             }
 
         }
@@ -277,45 +353,61 @@ namespace Apskaita5.DAL.MySql
         /// <summary>
         /// Fetches data using SQL query tokens in the SQL repository.
         /// </summary>
-        /// <param name="queries">a list of queries where the key is a token of the SQL query in the SQL repository
-        /// and the value is a collection of the SQL query parameters (null or empty array for none)</param>
+        /// <param name="queries">a list of queries identified by tokens in the SQL repository
+        /// and collections of SQL query parameters (null or empty array for none).</param>
+        /// <param name="cancellationToken">a cancelation token (if any)</param>
         /// <returns>an array of <see cref="LightDataTable">LightDataTables</see> that contain
         /// data returned by the SQL queries.</returns>
-        public override async Task<LightDataTable[]> FetchTablesAsync(KeyValuePair<string, SqlParam[]>[] queries)
+        public override async Task<LightDataTable[]> FetchTablesAsync((string Token, SqlParam[] Parameters)[] queries, 
+            CancellationToken cancellationToken)
         {
 
-            if (queries == null || queries.Length < 1) throw new ArgumentNullException(nameof(queries));
-            foreach (var query in queries)
-            {
-                if (query.Key == null || query.Key.Trim().Length < 1)
-                    throw new ArgumentException("Query token cannot be empty.", nameof(queries));
-            }
-
+            if (null == queries || queries.Length < 1) throw new ArgumentNullException(nameof(queries));
+            if (queries.Any(q => q.Token.IsNullOrWhitespace())) throw new ArgumentException(
+                Properties.Resources.QueryTokenEmptyException, nameof(queries));
+            
             var tasks = new List<Task<LightDataTable>>();
 
             if (this.IsTransactionInProgress)
             {
 
-                foreach (var query in queries)
+                foreach (var (Token, Parameters) in queries)
                 {
-                    tasks.Add(ExecuteCommandIntAsync<LightDataTable>(null, CurrentTransaction,
-                        GetSqlQuery(query.Key), query.Value));
+                    tasks.Add(ExecuteCommandIntAsync<LightDataTable>(null, GetSqlQuery(Token), Parameters, cancellationToken));
                 }
 
-                return await Task.WhenAll(tasks);
+                return await Task.WhenAll(tasks).ConfigureAwait(false);
 
             }
             else
             {
-                using (var conn = await OpenConnectionAsync())
+                using (var conn = await OpenConnectionAsync().ConfigureAwait(false))
                 {
-                    foreach (var query in queries)
+
+                    LightDataTable[] result;
+
+                    try
+                    {   
+                        foreach (var (Token, Parameters) in queries) tasks.Add(FetchUsingConnectionAsync(conn, GetSqlQuery(Token), 
+                            cancellationToken, Parameters));                        
+                        result = (await Task.WhenAll(tasks).ConfigureAwait(false));
+                    }
+                    finally
                     {
-                        tasks.Add(ExecuteCommandIntAsync<LightDataTable>(conn, null, 
-                            GetSqlQuery(query.Key), query.Value));
+                        if (conn != null)
+                        {
+                            if (conn.State != ConnectionState.Closed)
+                            {
+                                try { await conn.CloseAsync().ConfigureAwait(false); }
+                                catch (Exception) { }
+                            }
+                            try { conn.Dispose(); }
+                            catch (Exception) { }
+                        }                                                
                     }
 
-                    return await Task.WhenAll(tasks);
+                    return result; 
+                    
                 }
             }            
 
@@ -325,21 +417,24 @@ namespace Apskaita5.DAL.MySql
         /// Fetches data using raw SQL query (parameters should be prefixed by ?).
         /// </summary>
         /// <param name="sqlQuery">an SQL query to execute (parameters should be prefixed by ?)</param>
-        /// <param name="parameters">a collection of the SQL query parameters 
-        /// (null or empty array for none)</param>
+        /// <param name="parameters">a collection of the SQL query parameters (null or empty array for none)</param>
+        /// <param name="cancellationToken">a cancelation token (if any)</param>
         /// <returns>a <see cref="LightDataTable">LightDataTable</see> that contains
         /// data returned by the SQL query.</returns>
-        public override async Task<LightDataTable> FetchTableRawAsync(string sqlQuery, SqlParam[] parameters)
+        public override async Task<LightDataTable> FetchTableRawAsync(string sqlQuery, SqlParam[] parameters, 
+            CancellationToken cancellationToken)
         {
 
-            if (sqlQuery == null || string.IsNullOrEmpty(sqlQuery.Trim())) throw new ArgumentNullException(nameof(sqlQuery));
+            if (sqlQuery.IsNullOrWhitespace()) throw new ArgumentNullException(nameof(sqlQuery));
 
             if (this.IsTransactionInProgress)
-                return await ExecuteCommandIntAsync<LightDataTable>(null, CurrentTransaction, sqlQuery, parameters);
+                return await ExecuteCommandIntAsync<LightDataTable>(null, sqlQuery, parameters, 
+                    cancellationToken).ConfigureAwait(false);
 
-            using (var conn = await OpenConnectionAsync())
+            using (var conn = await OpenConnectionAsync().ConfigureAwait(false))
             {
-                return await ExecuteCommandIntAsync<LightDataTable>(conn, null, sqlQuery, parameters);
+                return await ExecuteCommandIntAsync<LightDataTable>(conn, sqlQuery, parameters, 
+                    cancellationToken).ConfigureAwait(false);
             }
 
         }
@@ -349,25 +444,26 @@ namespace Apskaita5.DAL.MySql
         /// </summary>
         /// <param name="table">the name of the table to fetch the fields for</param>
         /// <param name="fields">a collection of the names of the fields to fetch</param>
+        /// <param name="cancellationToken">a cancelation token (if any)</param>
         /// <returns>a <see cref="LightDataTable">LightDataTable</see> that contains
         /// specified fields data in the specified table.</returns>
-        /// <remarks>Used to fetch general company data.</remarks>
-        public override async Task<LightDataTable> FetchTableFieldsAsync(string table, string[] fields)
+        public override Task<LightDataTable> FetchTableFieldsAsync(string table, string[] fields, CancellationToken cancellationToken)
         {
             
-            if (table == null || string.IsNullOrEmpty(table.Trim())) throw new ArgumentNullException(nameof(table));
-            if (fields == null || fields.Length < 1) throw new ArgumentNullException(nameof(fields));
+            if (table.IsNullOrWhitespace()) throw new ArgumentNullException(nameof(table));
+            if (null == fields || fields.Length < 1) throw new ArgumentNullException(nameof(fields));
 
             var preparedFields = new List<string>();
             foreach (var field in fields)
             {
-                if (field == null || string.IsNullOrEmpty(field.Trim())) 
-                    throw new ArgumentException("Fields cannot be empty.", "fields");
-                preparedFields.Add(field.Trim().ToLower());
+                if (field.IsNullOrWhitespace())
+                    throw new ArgumentException(Properties.Resources.FieldsEmptyException, nameof(fields));
+                preparedFields.Add(field.ToConventional(this));
             }
 
-            return await FetchTableRawAsync(string.Format("SELECT {0} FROM {1};", 
-                string.Join(", ", preparedFields.ToArray()), table.Trim().ToLower()), null);
+            return FetchTableRawAsync(string.Format("SELECT {0} FROM {1};", 
+                string.Join(", ", preparedFields.ToArray()), table.ToConventional(this)), 
+                null, cancellationToken);
 
         }
 
@@ -376,22 +472,22 @@ namespace Apskaita5.DAL.MySql
         /// in the SQL repository and returns last insert id.
         /// </summary>
         /// <param name="insertStatementToken">a token of the SQL statement in the SQL repository</param>
-        /// <param name="parameters">a collection of the SQL statement parameters 
-        /// (null or empty array for none)</param>
+        /// <param name="parameters">a collection of the SQL statement parameters (null or empty array for none)</param>
         /// <returns>last insert id</returns>
         public override async Task<long> ExecuteInsertAsync(string insertStatementToken, SqlParam[] parameters)
         {
 
-            if (insertStatementToken == null || string.IsNullOrEmpty(insertStatementToken.Trim())) 
+            if (insertStatementToken.IsNullOrWhitespace())
                 throw new ArgumentNullException(nameof(insertStatementToken));
 
             if (this.IsTransactionInProgress)
-                return await ExecuteCommandIntAsync<long>(null, CurrentTransaction, 
-                    GetSqlQuery(insertStatementToken), parameters);
+                return await ExecuteCommandIntAsync<long>(null, GetSqlQuery(insertStatementToken), parameters, 
+                    CancellationToken.None).ConfigureAwait(false);
 
-            using (var conn = await OpenConnectionAsync())
+            using (var conn = await OpenConnectionAsync().ConfigureAwait(false))
             {
-                return await ExecuteCommandIntAsync<long>(conn, null, GetSqlQuery(insertStatementToken), parameters);
+                return await ExecuteCommandIntAsync<long>(conn, GetSqlQuery(insertStatementToken), parameters, 
+                    CancellationToken.None).ConfigureAwait(false);
             }
 
         }
@@ -400,22 +496,21 @@ namespace Apskaita5.DAL.MySql
         /// Executes a raw SQL statement, that inserts a new row, and returns last insert id.
         /// </summary>
         /// <param name="insertStatement">an SQL statement to execute</param>
-        /// <param name="parameters">a collection of the SQL statement parameters 
-        /// (null or empty array for none)</param>
+        /// <param name="parameters">a collection of the SQL statement parameters (null or empty array for none)</param>
         /// <returns>last insert id</returns>
         public override async Task<long> ExecuteInsertRawAsync(string insertStatement, SqlParam[] parameters)
         {
 
-            if (insertStatement == null || string.IsNullOrEmpty(insertStatement.Trim()))
-                throw new ArgumentNullException(nameof(insertStatement));
+            if (insertStatement.IsNullOrWhitespace()) throw new ArgumentNullException(nameof(insertStatement));
 
             if (this.IsTransactionInProgress)
-                return await ExecuteCommandIntAsync<long>(null, CurrentTransaction, insertStatement, parameters);
+                return await ExecuteCommandIntAsync<long>(null, insertStatement, parameters, 
+                    CancellationToken.None).ConfigureAwait(false);
 
-            using (var conn = await OpenConnectionAsync())
+            using (var conn = await OpenConnectionAsync().ConfigureAwait(false))
             {
-                return await ExecuteCommandIntAsync<long>(conn, null, insertStatement, parameters);
-
+                return await ExecuteCommandIntAsync<long>(conn, insertStatement, parameters, 
+                    CancellationToken.None).ConfigureAwait(false);  
             }
 
         }
@@ -425,20 +520,21 @@ namespace Apskaita5.DAL.MySql
         /// and returns affected rows count.
         /// </summary>
         /// <param name="statementToken">a token of the SQL statement in the SQL repository</param>
-        /// <param name="parameters">a collection of the SQL query parameters 
-        /// (null or empty array for none)</param>
+        /// <param name="parameters">a collection of the SQL query parameters (null or empty array for none)</param>
         /// <returns>affected rows count</returns>
         public override async Task<int> ExecuteCommandAsync(string statementToken, SqlParam[] parameters)
         {
 
-            if (statementToken == null || string.IsNullOrEmpty(statementToken.Trim())) throw new ArgumentNullException(nameof(statementToken));
+            if (statementToken.IsNullOrWhitespace()) throw new ArgumentNullException(nameof(statementToken));
 
             if (this.IsTransactionInProgress)
-                return await ExecuteCommandIntAsync<int>(null, CurrentTransaction, GetSqlQuery(statementToken), parameters);
+                return await ExecuteCommandIntAsync<int>(null, GetSqlQuery(statementToken), parameters, 
+                    CancellationToken.None).ConfigureAwait(false);
 
-            using (var conn = await OpenConnectionAsync())
+            using (var conn = await OpenConnectionAsync().ConfigureAwait(false))
             {
-                return await ExecuteCommandIntAsync<int>(conn, null, GetSqlQuery(statementToken), parameters);
+                return await ExecuteCommandIntAsync<int>(conn, GetSqlQuery(statementToken), parameters, 
+                    CancellationToken.None).ConfigureAwait(false);
             }
 
         }
@@ -447,20 +543,21 @@ namespace Apskaita5.DAL.MySql
         /// Executes a raw SQL statement and returns affected rows count.
         /// </summary>
         /// <param name="statement">an SQL statement to execute</param>
-        /// <param name="parameters">a collection of the SQL statement parameters 
-        /// (null or empty array for none)</param>
+        /// <param name="parameters">a collection of the SQL statement parameters (null or empty array for none)</param>
         /// <returns>affected rows count</returns>
         public override async Task<int> ExecuteCommandRawAsync(string statement, SqlParam[] parameters)
         {
 
-            if (statement == null || string.IsNullOrEmpty(statement.Trim())) throw new ArgumentNullException(nameof(statement));
+            if (statement.IsNullOrWhitespace()) throw new ArgumentNullException(nameof(statement));
 
             if (this.IsTransactionInProgress)
-                return await ExecuteCommandIntAsync<int>(null, CurrentTransaction, statement, parameters);
+                return await ExecuteCommandIntAsync<int>(null, statement, parameters, 
+                    CancellationToken.None).ConfigureAwait(false);
 
-            using (var conn = await OpenConnectionAsync())
+            using (var conn = await OpenConnectionAsync().ConfigureAwait(false))
             {
-                return await ExecuteCommandIntAsync<int>(conn, null, statement, parameters);
+                return await ExecuteCommandIntAsync<int>(conn, statement, parameters, 
+                    CancellationToken.None).ConfigureAwait(false);
             }
 
         }
@@ -474,13 +571,15 @@ namespace Apskaita5.DAL.MySql
         public override async Task ExecuteCommandBatchAsync(string[] statements)
         {
             
-            if (statements == null || statements.Length < 1)
+            if (null == statements || statements.Length < 1)
                 throw new ArgumentNullException(nameof(statements));
 
             if (this.IsTransactionInProgress)
-                throw new InvalidOperationException("Cannot execute batch while a transaction is in progress.");
+                throw new InvalidOperationException(Properties.Resources.CannotExecuteBatchException);
 
-            using (var conn = await OpenConnectionAsync())
+            string currentStatement = string.Empty;
+
+            using (var conn = await OpenConnectionAsync().ConfigureAwait(false))
             {
                 try
                 {
@@ -492,487 +591,63 @@ namespace Apskaita5.DAL.MySql
 
                         foreach (var statement in statements)
                         {
-                            if (statement != null && !string.IsNullOrEmpty(statement.Trim()))
+                            if (!statement.IsNullOrWhitespace())
                             {
+                                currentStatement = statement;
                                 command.CommandText = statement;
-                                await command.ExecuteNonQueryAsync();
+                                await command.ExecuteNonQueryAsync().ConfigureAwait(false);
                             }
                         }
 
                     }
+                }
+                catch (Exception ex)
+                {
+                    LogAndThrow(ex.WrapSqlException(currentStatement));
                 }
                 finally
                 {
-                    try
+                    if (conn != null && conn.State != ConnectionState.Closed)
                     {
-                        if (conn != null && conn.State != ConnectionState.Closed)
-                            await conn.CloseAsync();
-                    }
-                    catch (Exception) { }
+                        try { await conn.CloseAsync(); }
+                        catch (Exception) { }
+                    }                                            
                 }
 
             }
 
         }
 
-        /// <summary>
-        /// Checks if the database specified exists.
-        /// </summary>
-        /// <param name="databaseName">a name of the database to check</param>
-        /// <returns>True if the database specified exists.</returns>
-        public override async Task<bool> DatabaseExistsAsync(string databaseName)
-        {
-            using (var conn = await OpenConnectionAsync())
-            {
-                var table = await ExecuteCommandIntAsync<LightDataTable>(conn, null,
-                    string.Format("SHOW DATABASES LIKE '{0}';", databaseName), null);
-                return (table.Rows.Count > 0);
-            }                   
-        }
-
-        /// <summary>
-        /// Checks if the database is empty, i.e. contains no tables.
-        /// </summary>
-        /// <param name="databaseName">a name of the database to check</param>
-        /// <returns>True if the database contains any tables.</returns>
-        public override async Task<bool> DatabaseEmptyAsync(string databaseName)
-        {
-            using (var conn = await OpenConnectionAsync())
-            {
-                var table = await ExecuteCommandIntAsync<LightDataTable>(conn, null,
-                    string.Format("SHOW TABLES FROM `{0}`;", databaseName), null);
-                return (table.Rows.Count < 1);
-            }                   
-        }
-
-
-        /// <summary>
-        /// Gets a <see cref="DbSchema">DbSchema</see> instance (a canonical database description) 
-        /// for the current database.
-        /// </summary>
-        public override async Task<DbSchema> GetDbSchemaAsync()
-        {
-
-            if (_currentDatabase == null || string.IsNullOrEmpty(_currentDatabase))
-                throw new InvalidOperationException("Database is not set, cannot get schema.");
-            if (IsTransactionInProgress)
-                throw new InvalidOperationException("Cannot get schema while a transaction is in progress.");
-
-            var result = new DbSchema();
-
-            var conn = await OpenConnectionAsync();
-
-            try
-            {
-                var dbData = await FetchUsingConnectionAsync(conn, "SELECT @@character_set_database, @@default_storage_engine;");
-
-                if (dbData.Rows.Count > 0)
-                {
-                    result.CharsetName = dbData.Rows[0].GetString(0);
-                    result.Description = string.Format("DB schema for the mysql database {0} using engine {1}.",
-                        _currentDatabase, dbData.Rows[0].GetString(1));
-                }
-
-                var indexDictionary = await GetIndexesAsync(conn);
-                var fkDictionary = await GetForeignKeysAsync(conn);
-
-                result.Tables = new List<DbTableSchema>();
-
-                var tablesData = await FetchUsingConnectionAsync(conn, "SHOW TABLE STATUS;");
-                foreach (var row in tablesData.Rows)
-                {
-                    result.Tables.Add(await GetDbTableSchemaAsync(conn, row, indexDictionary, fkDictionary));
-                }
-
-                conn.Close();
-
-                conn.Dispose();
-
-            }
-            catch (Exception)
-            {
-                if (conn != null)
-                {
-                    try
-                    {
-                        if (conn.State != ConnectionState.Closed) await conn.CloseAsync();
-                    }
-                    catch (Exception) { }
-                    try
-                    {
-                        conn.Dispose();
-                    }
-                    catch (Exception){}
-                }
-                throw;
-            }
-            
-            return result;
-
-        }
-
-        /// <summary>
-        /// Compares the actualSchema definition to the gaugeSchema definition and returns
-        /// a list of DbSchema errors, i.e. inconsistencies found and SQL statements to repair them.
-        /// </summary>
-        /// <param name="gaugeSchema">the gauge schema definition to compare the actualSchema against</param>
-        /// <param name="actualSchema">the schema to check for inconsistencies (and repair)</param>
-        public override List<DbSchemaError> GetDbSchemaErrors(DbSchema gaugeSchema, DbSchema actualSchema)
-        {
-            
-            if (gaugeSchema == null) throw new ArgumentNullException(nameof(gaugeSchema));
-            if (actualSchema == null) throw new ArgumentNullException(nameof(actualSchema));
-            if (IsTransactionInProgress) throw new InvalidOperationException("Cannot get schema errors while a transaction is in progress.");
-            
-            var result = new List<DbSchemaError>();
-
-            foreach (var gaugeTable in gaugeSchema.Tables)
-            {
-
-                var gaugeTableFound = false;
-
-                foreach (var actualTable in actualSchema.Tables)
-                {
-                    if (actualTable.Name.Trim().ToUpperInvariant() == gaugeTable.Name.Trim().ToUpperInvariant())
-                    {
-                        result.AddRange(GetDbTableSchemaErrors(gaugeTable, actualTable));
-                        gaugeTableFound = true;
-                        break;
-                    }
-                }
-
-                if (!gaugeTableFound)
-                {
-                    var applicableEngine = _engine;
-                    if (string.IsNullOrEmpty(applicableEngine.Trim())) applicableEngine = DefaultEngine;
-                    var applicableCharset = _charset;
-                    if (string.IsNullOrEmpty(applicableCharset.Trim())) applicableCharset = DefaultCharset;
-                    result.Add(GetDbSchemaError(DbSchemaErrorType.TableMissing, string.Format("Table {0} missing.", 
-                        gaugeTable.Name), gaugeTable.Name, gaugeTable.GetCreateTableStatements(
-                        _currentDatabase, applicableEngine, applicableCharset).ToArray()));
-                }
-
-            }
-
-            foreach (var actualTable in actualSchema.Tables)
-            {
-
-                var actualTableFound = gaugeSchema.Tables.Any(gaugeTable => actualTable.Name.Trim().ToUpperInvariant() 
-                    == gaugeTable.Name.Trim().ToUpperInvariant());
-
-                if (!actualTableFound)
-                {
-                    result.Add(GetDbSchemaError(DbSchemaErrorType.TableObsolete, string.Format("Table {0} is obsolete.",
-                        actualTable.Name), actualTable.Name, actualTable.GetDropTableStatements(_currentDatabase).ToArray()));
-                }
-
-            }
-
-            return result;
-
-        }
-
-        /// <summary>
-        /// Gets an SQL script to create a database for the dbSchema specified.
-        /// </summary>
-        /// <param name="dbSchema">the database schema to get the create database script for</param>
-        public override string GetCreateDatabaseSql(DbSchema dbSchema)
-        {
-            
-            var createScript = new List<string>
-                {
-                    "CREATE DATABASE DoomyDatabaseName CHARACTER SET utf8;",
-                    "USE DoomyDatabaseName;"
-                };
-
-            foreach (var table in dbSchema.GetTablesInCreateOrder())
-            {
-                createScript.AddRange(table.GetCreateTableStatements("DoomyDatabaseName", 
-                    DefaultEngine, DefaultCharset));
-            }
-
-            return string.Join(Environment.NewLine, createScript.ToArray());
-
-        }
-
-        private List<DbSchemaError> GetDbTableSchemaErrors(DbTableSchema gaugeSchema, DbTableSchema actualSchema)
-        {
-
-            var result = new List<DbSchemaError>();
-
-            foreach (var gaugeField in gaugeSchema.Fields)
-            {
-
-                var gaugeFieldFound = false;
-
-                foreach (var actualField in actualSchema.Fields)
-                {
-                    if (gaugeField.Name.Trim().ToUpperInvariant() == actualField.Name.Trim().ToUpperInvariant())
-                    {
-
-                        var schemasMatch = gaugeField.FieldSchemaMatch(actualField);
-                        var indexMatch = gaugeField.FieldIndexMatch(actualField);
-                        var statements = new List<string>();
-                        var inconsistencyType = DbSchemaErrorType.FieldDefinitionObsolete;
-                        var description = string.Empty;
-
-                        if (!schemasMatch && !indexMatch)
-                        {
-                            statements.AddRange(actualField.GetDropIndexStatements(_currentDatabase, actualSchema.Name));
-                            statements.AddRange(gaugeField.GetAlterFieldStatements(_currentDatabase, actualSchema.Name));
-                            statements.AddRange(gaugeField.GetAddIndexStatements(_currentDatabase, actualSchema.Name));
-                            description = string.Format("Table {0} field {1} schema and index definitions are obsolete.",
-                                gaugeSchema.Name, actualField.Name);
-                        }
-                        else
-                        {
-                            if (!schemasMatch)
-                            {
-                                statements.AddRange(gaugeField.GetAlterFieldStatements(_currentDatabase, actualSchema.Name));
-                                description = string.Format("Table {0} field {1} schema definition is obsolete.",
-                                    gaugeSchema.Name, actualField.Name);
-                            }
-                            if (!indexMatch)
-                            {
-                                statements.AddRange(actualField.GetDropIndexStatements(_currentDatabase, actualSchema.Name));
-                                statements.AddRange(gaugeField.GetAddIndexStatements(_currentDatabase, actualSchema.Name));
-                                inconsistencyType=DbSchemaErrorType.IndexObsolete;
-                                description = string.Format("Table {0} field {1} index definition is obsolete.",
-                                    gaugeSchema.Name, actualField.Name);
-                            }
-                        }
-
-                        if (!indexMatch || !schemasMatch)
-                        {
-                            result.Add(GetDbSchemaError(inconsistencyType, description, gaugeSchema.Name,
-                                gaugeField.Name, statements.ToArray()));
-                        }
-
-                        gaugeFieldFound = true;
-                        break;
-
-                    }
-                }
-
-                if (!gaugeFieldFound)
-                {
-                    result.Add(GetDbSchemaError(DbSchemaErrorType.FieldMissing, string.Format("Field {0} in table {1} missing.",
-                        gaugeField.Name, gaugeSchema.Name), gaugeSchema.Name, gaugeField.Name,
-                        gaugeField.GetAddFieldStatements(_currentDatabase, gaugeSchema.Name).ToArray()));
-                }
-
-            }
-
-            foreach (var actualField in actualSchema.Fields)
-            {
-
-                var actualFieldFound = gaugeSchema.Fields.Any(gaugeField => actualField.Name.Trim().ToLower()
-                    == gaugeField.Name.Trim().ToLower());
-
-                if (!actualFieldFound)
-                {
-                    result.Add(GetDbSchemaError(DbSchemaErrorType.FieldObsolete, string.Format("Field {0} in table {1} is obsolete.",
-                        actualField.Name, actualSchema.Name), actualSchema.Name, actualField.Name,
-                        actualField.GetDropFieldStatements(_currentDatabase, actualSchema.Name).ToArray()));
-                }
-
-            }
-
-            return result;
-
-        }
-
-
-        /// <summary>
-        /// A method that should do the actual new database creation.
-        /// </summary>
-        /// <param name="databaseName">a name of the new database to create</param>
-        /// <param name="dbSchema">a DbSchema to use for the new database</param>
-        /// <remarks>After creating a new database the <see cref="SqlAgentBase.CurrentDatabase">CurrentDatabase</see>
-        /// property should be set to the new database name.</remarks>
-        protected override async Task CreateDatabaseAsync(string databaseName, DbSchema dbSchema)
-        {
-
-            var applicableEngine = _engine;
-            if (string.IsNullOrEmpty(applicableEngine.Trim())) applicableEngine = DefaultEngine;
-            var applicableCharset = _charset;
-            if (string.IsNullOrEmpty(applicableCharset.Trim())) applicableCharset = DefaultCharset;
-
-            var createScript = new List<string>
-                {
-                    string.Format("CREATE DATABASE {0} CHARACTER SET {1};", databaseName, applicableCharset),
-                    string.Format("USE {0};", databaseName)
-                };
-
-            foreach (var table in dbSchema.GetTablesInCreateOrder())
-            {
-                createScript.AddRange(table.GetCreateTableStatements(databaseName, 
-                    applicableEngine, applicableCharset));
-            }
-
-            await this.ExecuteCommandBatchAsync(createScript.ToArray());
-
-            _currentDatabase = databaseName;
-
-        }
-
-        /// <summary>
-        /// Drops (deletes) the database specified.
-        /// </summary>
-        /// <param name="databaseName">the name of the database to drop</param>
-        public override async Task DropDatabaseAsync(string databaseName)
-        {
-            if (databaseName == null || string.IsNullOrEmpty(databaseName.Trim())) 
-                throw new ArgumentNullException(nameof(databaseName));
-            if (IsTransactionInProgress)
-                throw new InvalidOperationException("Cannot drop database while transaction is in progress.");
-            await ExecuteCommandRawAsync(string.Format("DROP DATABASE {0};", databaseName), null);
-        }
-
-
-        /// <summary>
-        /// Copies table data from the current SqlAgent instance to the target SqlAgent instance.
-        /// </summary>
-        /// <param name="schema">a schema of the database to copy the data</param>
-        /// <param name="targetSqlAgent">the target SqlAgent to copy the data to</param>
-        /// <param name="worker">BackgroundWorker to report the progress to (if used)</param>
-        /// <remarks>Required for <see cref="SqlAgentBase.CloneDatabase">CloneDatabase</see> infrastructure.
-        /// Basicaly iterates tables, selects data, creates an IDataReader for the table and passes it to the 
-        /// <see cref="InsertTableData">InsertTableData</see> method of the target SqlAgent.</remarks>
-        protected override void CopyData(DbSchema schema, SqlAgentBase targetSqlAgent,
-            System.ComponentModel.BackgroundWorker worker)
-        {
-
-            using (var conn = OpenConnectionAsync().Result)
-            {
-                try
-                {
-                    using (var command = new MySqlCommand())
-                    {
-
-                        command.Connection = conn;
-                        command.CommandTimeout = QueryTimeOut;
-
-                        int percentsPerTable = (schema.Tables.Count / 90);
-
-                        foreach (var table in schema.Tables)
-                        {
-
-                            if (worker != null)
-                                worker.ReportProgress((10 + (schema.Tables.IndexOf(table) * percentsPerTable)),
-                                    "Cloning table {0} data...");
-
-                            var fields = string.Join(", ", table.Fields.Select(
-                                field => field.Name.Trim().ToLower()).ToArray());
-                            
-                            command.CommandText = string.Format("SELECT {0} FROM {1};",
-                                fields, table.Name.Trim().ToLower());
-
-                            using (IDataReader reader = command.ExecuteReader())
-                            {
-                                CallInsertTableDataAsync(targetSqlAgent, table, reader).Wait();
-                            }
-
-                            if (worker != null && worker.CancellationPending)
-                            {
-                                worker.ReportProgress(100, "Clone has been canceled by the user. WARNING. The target database has already been creted.");
-                                throw new Exception("Clone has been canceled by the user. WARNING. The target database has already been creted.");
-                            }
-
-                        }
-
-                    }
-                }
-                finally
-                {
-                    try
-                    {
-                        if (conn != null && conn.State != ConnectionState.Closed)
-                            conn.Close();
-                    }
-                    catch (Exception) { }
-                }
-
-            }
-
-        }
-
-        /// <summary>
-        /// Disables foreign key checks for the current transaction.
-        /// </summary>
-        /// <remarks>Required for <see cref="SqlAgentBase.CloneDatabase">CloneDatabase</see> infrastructure.</remarks>
-        protected override async Task DisableForeignKeysForCurrentTransactionAsync()
-        {
-            await ExecuteCommandIntAsync<int>(null, CurrentTransaction, "SET FOREIGN_KEY_CHECKS = 0;", null);
-        }
-
-        /// <summary>
-        /// Inserts table data from the reader to the current SqlAgent instance,
-        /// </summary>
-        /// <param name="table">a schema of the table to insert the data to</param>
-        /// <param name="reader">an IDataReader to read the table data from.</param>
-        /// <remarks>Required for <see cref="SqlAgentBase.CloneDatabase">CloneDatabase</see> infrastructure.
-        /// The insert is performed using a transaction that is already initiated by the 
-        /// <see cref="SqlAgentBase.CloneDatabase">CloneDatabase</see>.</remarks>
-        protected override async Task InsertTableDataAsync(DbTableSchema table, IDataReader reader)
-        {
-
-            var fields = table.Fields.Select(field => field.Name.Trim().ToLower()).ToList();
-            
-            var paramPrefixedNames = new List<string>();
-            var paramNames = new List<string>();
-            for (int i = 0; i < fields.Count; i++)
-            {
-                var paramName = GetParameterName(i);
-                paramNames.Add(paramName);
-                paramPrefixedNames.Add(ParamPrefix + paramName);
-            }
-
-            var insertStatement = string.Format("INSERT INTO {0}({1}) VALUES({2});",
-                table.Name.ToLower(), string.Join(", ", fields.ToArray()),
-                string.Join(", ", paramPrefixedNames.ToArray()));
-
-            while (reader.Read())
-            {
-                var paramValues = new List<SqlParam>();
-                for (int i = 0; i < fields.Count; i++)
-                {
-                    paramValues.Add(new SqlParam(paramNames[i], reader.GetValue(i)));
-                }
-                await this.ExecuteCommandIntAsync<int>(null, CurrentTransaction, insertStatement, paramValues.ToArray());
-            }
-
-        }
-
-
-
-        private async Task<MySqlConnection> OpenConnectionAsync()
+        #endregion
+        
+        
+        internal async Task<MySqlConnection> OpenConnectionAsync(bool withoutDatabase = false)
         {
 
             MySqlConnection result;
-            if (_currentDatabase == null || string.IsNullOrEmpty(_currentDatabase.Trim()))
+            if (CurrentDatabase.IsNullOrWhitespace() || withoutDatabase)
             {
-                result = new MySqlConnection(_baseConnectionString);
+                result = new MySqlConnection(BaseConnectionString);  
             }
             else
             {
-                if (_baseConnectionString.Trim().EndsWith(";"))
+                if (BaseConnectionString.Trim().EndsWith(";"))
                 {
-                    result = new MySqlConnection(_baseConnectionString + "Database=" + _currentDatabase.Trim() + ";");
+                    result = new MySqlConnection(BaseConnectionString + "Database=" + CurrentDatabase.Trim() + ";");
                 }
                 else
                 {
-                    result = new MySqlConnection(_baseConnectionString + ";Database=" + _currentDatabase.Trim() + ";");
+                    result = new MySqlConnection(BaseConnectionString + ";Database=" + CurrentDatabase.Trim() + ";");
                 }
             }
 
             try
             {
-                await result.OpenAsync();
+                await result.OpenAsync().ConfigureAwait(false);
             }
             catch (Exception ex)
             {
-                await HandleOpenConnectionException(result, ex);
+                await HandleOpenConnectionException(result, ex).ConfigureAwait(false);
             }
 
             return result;
@@ -980,84 +655,40 @@ namespace Apskaita5.DAL.MySql
         }
 
         private async Task HandleOpenConnectionException(MySqlConnection conn, Exception ex)
-        {
-
-            if (conn != null && conn.State != ConnectionState.Closed)
+        {   
+             
+            if (!conn.IsNull())
             {
-                try
+                if (conn.State != ConnectionState.Closed)
                 {
-                    await conn.CloseAsync();
+                    try { await conn.CloseAsync().ConfigureAwait(false); }
+                    catch (Exception) { }
                 }
-                catch (Exception){}
-            }
-
-            if (conn != null)
-            {
-                try
-                {
-                    conn.Dispose();
-                }
+                try { conn.Dispose(); }
                 catch (Exception){}
             }
 
             var mySqlEx = ex as MySqlException;
-            if (mySqlEx != null)
+            if (!mySqlEx.IsNull())
             {
 
                 if (mySqlEx.Number == 28000 ||
                     mySqlEx.Number == 42000)
                 {
-                    throw new SqlException("Access denied.",mySqlEx.Number, mySqlEx);
+                    throw new SqlException(Properties.Resources.SqlExceptionAccessDenied, mySqlEx.Number, string.Empty, mySqlEx);
                 }
 
                 if (mySqlEx.Number == 2003)
                 {
-                    throw new SqlException("Unable to connect to the MySql server. Server is down, host address is invalid or connection is blocked by a firewall.",
-                        mySqlEx.Number, mySqlEx);
+                    throw new SqlException(Properties.Resources.SqlExceptionUnableToConnect,
+                        mySqlEx.Number, string.Empty, mySqlEx);
                 }
 
-                throw new SqlException(string.Format("MySql server returned error: {0}", mySqlEx.Message), 
-                    mySqlEx.Number, mySqlEx);
+                throw mySqlEx.WrapSqlException();
 
             }
 
-            throw new Exception(string.Format("Unknown exception occured while opening connection to the MySql server: {0}", 
-                ex.Message), ex);
-
-        }
-
-        private void CleanUpTransaction()
-        {
-
-            if (CurrentTransaction == null) return;
-
-            if (CurrentTransaction.Connection != null)
-            {
-
-                if (CurrentTransaction.Connection.State == ConnectionState.Open)
-                {
-                    try
-                    {
-                        CurrentTransaction.Connection.Close();
-                    }
-                    catch (Exception){}
-                }
-
-                try
-                {
-                    CurrentTransaction.Connection.Dispose();
-                }
-                catch (Exception) { }
-
-            }
-
-            try
-            {
-                CurrentTransaction.Dispose();
-            }
-            catch (Exception) { }
-
-            CurrentTransaction = null;
+            throw ex;
 
         }
 
@@ -1067,93 +698,23 @@ namespace Apskaita5.DAL.MySql
 
             command.Parameters.Clear();
 
-            if (parameters == null || parameters.Length < 1) return;
+            if (null == parameters || parameters.Length < 1) return;
 
-            foreach (var parameter in parameters)
-            {
-                if (!parameter.ReplaceInQuery)
-                {
-                    var value = parameter.Value;
-                    if (parameter.Value != null && BooleanStoredAsTinyInt && parameter.Value.GetType() == typeof(bool))
-                    {
-                        if ((bool)value) value = 1;
-                        else value = 0;
-                    }
-                    command.Parameters.Add(new MySqlParameter
-                    {
-                        ParameterName = ParamPrefix + parameter.Name.Trim(),
-                        DbType = GetNativeDbType(parameter),                    
-                        Value = value,
-                    });
-
-                }
-            }
-
-        }
-
-        private DbType GetNativeDbType(SqlParam parameter)
-        {
-
-            Type valueType;
-
-            if (parameter.Value == null)
-            {
-                if (parameter.ValueType == null)
-                    return DbType.String;
-                valueType = parameter.ValueType;
-            }
-            else
-            {
-                valueType = parameter.Value.GetType();
-            }
-
-            if (valueType == typeof(Byte))
-                return DbType.Byte;
-            if (valueType == typeof(Int16))
-                return DbType.Int16;
-            if (valueType == typeof(Int32))
-                return DbType.Int32;
-            if (valueType == typeof(Int64))
-                return DbType.Int64;
-            if (valueType == typeof(UInt16))
-                return DbType.UInt16;
-            if (valueType == typeof(UInt32))
-                return DbType.UInt32;
-            if (valueType == typeof(UInt64))
-                return DbType.UInt64;
-            if (valueType == typeof(Byte[]))
-                return DbType.Binary;
-            if (valueType == typeof(SByte))
-                return DbType.SByte;
-            if (valueType == typeof(Boolean))
-                return DbType.Boolean;
-            if (valueType == typeof(DateTime))
-                return DbType.DateTime;
-            if (valueType == typeof(Decimal))
-                return DbType.Decimal;
-            if (valueType == typeof(Single))
-                return DbType.Single;
-            if (valueType == typeof(Double))
-                return DbType.Double;
-            if (valueType == typeof(Guid))
-                return DbType.Guid;
-            if (valueType == typeof(DateTimeOffset))
-                return DbType.DateTimeOffset;
-            
-            return DbType.String;
+            foreach (var p in parameters.Where(p => !p.ReplaceInQuery)) command.Parameters.AddWithValue(
+                ParamPrefix + p.Name.Trim(), p.GetValue(this));
 
         }
 
         private string ReplaceParams(string sqlQuery, SqlParam[] parameters)
         {
 
-            if (parameters == null || parameters.Length < 1) return sqlQuery;
+            if (null == parameters || parameters.Length < 1) return sqlQuery;
 
             var result = sqlQuery;
 
             foreach (var parameter in parameters.Where(parameter => parameter.ReplaceInQuery))
             {
-                if (parameter.Value == null)
+                if (parameter.Value.IsNull())
                 {
                     result = result.Replace(parameter.Name.Trim(), "NULL");
                 }
@@ -1166,18 +727,24 @@ namespace Apskaita5.DAL.MySql
             return result;
         }
 
-        private async Task<T> ExecuteCommandIntAsync<T>(MySqlConnection connection, MySqlTransaction transaction,
-            string sqlStatement, SqlParam[] parameters)
+
+        internal void LogAndThrowInt(Exception ex) { LogAndThrow(ex); }
+
+
+        private async Task<T> ExecuteCommandIntAsync<T>(MySqlConnection connection, string sqlStatement, 
+            SqlParam[] parameters, CancellationToken cancellationToken)
         {
+
+            var transaction = CurrentTransaction;
 
             try
             {
                 using (var command = new MySqlCommand())
-                {
+                {   
 
-                    if (transaction == null)
+                    if (transaction.IsNull())
                     {
-                        command.Connection = connection;
+                        command.Connection = connection ?? throw new ArgumentNullException(nameof(connection));
                     }
                     else
                     {
@@ -1192,19 +759,19 @@ namespace Apskaita5.DAL.MySql
 
                     if (typeof(T) == typeof(LightDataTable))
                     {
-                        var reader = await command.ExecuteReaderAsync();
-                        return (T)(Object)(new LightDataTable(reader));
+                        var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+                        return (T)(Object)(await LightDataTable.CreateAsync(reader).ConfigureAwait(false));
                     }
                     else if (typeof(T) == typeof(long))
                     {
-                        await command.ExecuteNonQueryAsync();
+                        await command.ExecuteNonQueryAsync().ConfigureAwait(false);
                         return (T)(Object)command.LastInsertedId;
                     }
                     else if (typeof(T) == typeof(int))
                     {
-                        return (T)(Object)(await command.ExecuteNonQueryAsync());
+                        return (T)(Object)(await command.ExecuteNonQueryAsync().ConfigureAwait(false));
                     }
-                    else throw new NotSupportedException(string.Format("Generic parameter type {0} is not supported by MySqlAgent.ExecuteCommandInt.",
+                    else throw new NotSupportedException(string.Format(Properties.Resources.NotSupportedExecutionTypeException,
                         typeof (T).FullName));
 
                 }
@@ -1214,355 +781,66 @@ namespace Apskaita5.DAL.MySql
 
                 if (transaction != null)
                 {
-
-                    try
-                    {
-                        transaction.Rollback();
-                    }
-                    catch (Exception e)
-                    {
-                        throw new Exception(
-                            string.Format(
-                                "Critical SQL transaction error, failed to rollback the transaction.{0}{1}{2}{3}",
-                                Environment.NewLine, ex.Message, Environment.NewLine, e.Message), ex);
-                    }
-                    finally
-                    {
-                        CleanUpTransaction();
-                    }
-
+                    try { transaction.Rollback(); }
+                    catch (Exception e) {LogAndThrow(ex.WrapSqlException(sqlStatement + (parameters?.GetDescription() ?? string.Empty), e)); }
+                    finally { CleanUpTransaction(); }   
                 }
 
+                LogAndThrow(ex.WrapSqlException(sqlStatement + (parameters?.GetDescription() ?? string.Empty)));
                 throw;
+
             }
             finally
             {
-                if (transaction == null)
+                if (transaction.IsNull() && !connection.IsNull())
                 {
-                    try
+                    if (connection.State != ConnectionState.Closed)
                     {
-                        if (connection != null && connection.State != ConnectionState.Closed)
-                            await connection.CloseAsync();
+                        try { await connection.CloseAsync().ConfigureAwait(false); }
+                        catch (Exception) { }
                     }
+                    try { connection.Dispose(); }
                     catch (Exception) { }
                 }
-            }
-
+            } 
         }
 
-        private async Task<LightDataTable> FetchUsingConnectionAsync(MySqlConnection connection, string sqlStatement)
+        internal async Task<LightDataTable> FetchUsingConnectionAsync(MySqlConnection connection,
+            string sqlStatement, CancellationToken cancellationToken, SqlParam[] parameters = null)
         {
 
-            using (var command = new MySqlCommand())
+            if (null == connection) throw new ArgumentNullException(nameof(connection));
+            if (sqlStatement.IsNullOrWhitespace()) throw new ArgumentNullException(nameof(sqlStatement));
+
+            try
             {
-
-                command.Connection = connection;
-                command.CommandTimeout = QueryTimeOut;
-                command.CommandText = sqlStatement;
-
-                using (var reader = await command.ExecuteReaderAsync())
+                using (var command = new MySqlCommand())
                 {
-                    return new LightDataTable(reader);
-                }
 
-            }
+                    command.Connection = connection;
+                    command.CommandTimeout = QueryTimeOut;
+                    command.CommandText = sqlStatement;
+                    AddParams(command, parameters);
 
-        }
-
-
-        private async Task<DbTableSchema> GetDbTableSchemaAsync(MySqlConnection conn, LightDataRow tableStatusRow,
-            Dictionary<string, Dictionary<string, string>> indexDictionary,
-            Dictionary<string, Dictionary<string, ForeignKeyData>> fkDictionary)
-        {
-
-            var result = new DbTableSchema
-            {
-                Name = tableStatusRow.GetString(0),
-                EngineName = tableStatusRow.GetString(1),
-                CharsetName = tableStatusRow.GetString(14),
-                Description = tableStatusRow.GetString(17),
-                Fields = new List<DbFieldSchema>()
-            };
-
-            Dictionary<string, string> tableIndexDictionary = null;
-            Dictionary<string, ForeignKeyData> tableFkDictionary = null;
-            if (indexDictionary.ContainsKey(result.Name.Trim().ToLower()))
-                tableIndexDictionary = indexDictionary[result.Name.Trim().ToLower()];
-            if (fkDictionary.ContainsKey(result.Name.Trim().ToLower()))
-                tableFkDictionary = fkDictionary[result.Name.Trim().ToLower()];
-
-
-            var fieldsData = await FetchUsingConnectionAsync(conn,  
-                string.Format("SHOW FULL COLUMNS FROM {0};", result.Name));
-
-            foreach (var row in fieldsData.Rows)
-            {
-                result.Fields.Add(this.GetDbFieldSchema(row, tableIndexDictionary, tableFkDictionary));
-            }
-
-            return result;
-
-        }
-
-        private DbFieldSchema GetDbFieldSchema(LightDataRow fieldStatusRow,
-            Dictionary<string, string> indexDictionary, Dictionary<string, ForeignKeyData> fkIndex)
-        {
-
-            var result = new DbFieldSchema
-            {
-                Name = fieldStatusRow.GetString(0),
-                NotNull = (fieldStatusRow.GetString(3).Trim().ToLower() == "no"),
-                Unsigned = (fieldStatusRow.GetString(1).Trim().ToLower().Contains("unsigned")),
-                Autoincrement = (fieldStatusRow.GetString(6).Trim().ToLower().Contains("auto_increment")),
-                Description = fieldStatusRow.GetString(8)
-            };
-
-            var rawType = fieldStatusRow.GetString(1).Trim();
-
-            result.DataType = GetFieldType(rawType.ToLower());
-
-            var typeDetails = "";
-            if (rawType.Contains("("))
-                typeDetails = rawType.Substring(rawType.IndexOf("(", StringComparison.Ordinal) + 1,
-                    rawType.IndexOf(")", StringComparison.Ordinal)
-                    - rawType.IndexOf("(", StringComparison.Ordinal) - 1);
-
-            if (result.DataType == DbDataType.Char || result.DataType == DbDataType.VarChar)
-            {
-                if (int.TryParse(typeDetails.Trim().Replace("`", "").Replace("'", "").Replace("\"", ""), out int length))
-                    result.Length = length;
-            }
-            if (result.DataType == DbDataType.Decimal)
-            {
-                var intValues = typeDetails.Trim().Replace("`", "").Replace("'", "").Replace("\"", "").Split(
-                    new string[] { "," }, StringSplitOptions.RemoveEmptyEntries);
-                if (intValues.Length > 1)
-                {
-                    if (int.TryParse(intValues[1].Trim(), out int length))
-                        result.Length = length;
-                }
-            }
-            if (result.DataType == DbDataType.Enum)
-            {
-                result.EnumValues = typeDetails.Trim().Replace("`", "").Replace("'", "").Replace("\"", "");
-            }
-
-            if (fieldStatusRow.GetString(4).Trim().ToLower() == "pri")
-            {
-                result.IndexType = DbIndexType.Primary;
-            }
-            else
-            {
-                if (fkIndex != null && fkIndex.ContainsKey(result.Name.Trim().ToLower()))
-                {
-                    result.IndexType = DbIndexType.ForeignKey;
-                    result.IndexName = fkIndex[result.Name.Trim().ToLower()].Name;
-                    result.OnUpdateForeignKey = fkIndex[result.Name.Trim().ToLower()].OnUpdate;
-                    result.OnDeleteForeignKey = fkIndex[result.Name.Trim().ToLower()].OnDelete;
-                    result.RefTable = fkIndex[result.Name.Trim().ToLower()].RefTable;
-                    result.RefField = fkIndex[result.Name.Trim().ToLower()].RefField;
-                }
-                else
-                {
-                    if (indexDictionary != null && indexDictionary.ContainsKey(result.Name.Trim().ToLower()))
+                    using (var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false))
                     {
-                        result.IndexType = DbIndexType.Simple;
-                        if (fieldStatusRow.GetString(4).Trim().ToLower() == "uni")
-                            result.IndexType = DbIndexType.Unique;
-                        result.IndexName = indexDictionary[result.Name.Trim().ToLower()];
+                        return await LightDataTable.CreateAsync(reader).ConfigureAwait(false);
                     }
+
                 }
             }
-
-            return result;
-
-        }
-
-        private static DbDataType GetFieldType(string definition)
-        {
-
-            var nativeName = definition;
-            if (nativeName.Contains("("))
-                nativeName = nativeName.Substring(0, nativeName.IndexOf("(", StringComparison.Ordinal));
-            if (nativeName.Contains(" "))
-                nativeName = nativeName.Substring(0, nativeName.IndexOf(" ", StringComparison.Ordinal));
-            nativeName = nativeName.Trim().ToLower();
-
-            switch (nativeName)
+            catch (Exception ex)
             {
-                case "blob":
-                    return DbDataType.Blob;
-                case "longblob":
-                    return DbDataType.BlobLong;
-                case "mediumblob":
-                    return DbDataType.BlobMedium;
-                case "tinyblob":
-                    return DbDataType.BlobTiny;
-                case "char":
-                    return DbDataType.Char;
-                case "date":
-                    return DbDataType.Date;
-                case "datetime":
-                    return DbDataType.DateTime;
-                case "decimal":
-                    return DbDataType.Decimal;
-                case "double":
-                    return DbDataType.Double;
-                case "enum":
-                    return DbDataType.Enum;
-                case "float":
-                    return DbDataType.Float;
-                case "int":
-                    return DbDataType.Integer;
-                case "integer":
-                    return DbDataType.Integer;
-                case "bigint":
-                    return DbDataType.IntegerBig;
-                case "mediumint":
-                    return DbDataType.IntegerMedium;
-                case "smallint":
-                    return DbDataType.IntegerSmall;
-                case "tinyint":
-                    return DbDataType.IntegerTiny;
-                case "real":
-                    return DbDataType.Real;
-                case "text":
-                    return DbDataType.Text;
-                case "longtext":
-                    return DbDataType.TextLong;
-                case "mediumtext":
-                    return DbDataType.TextMedium;
-                case "time":
-                    return DbDataType.Time;
-                case "timestamp":
-                    return DbDataType.TimeStamp;
-                case "varchar":
-                    return DbDataType.VarChar;
-                default:
-                    throw new NotImplementedException(string.Format(
-                        "MySql database data type {0} is unknown.", definition));
-            }
-        }
-
-        private async Task<Dictionary<string, Dictionary<string, string>>> GetIndexesAsync(MySqlConnection conn)
-        {
-
-            var result = new Dictionary<string, Dictionary<string, string>>();
-
-            var indexTable = await FetchUsingConnectionAsync(conn, @"
-                SELECT s.TABLE_NAME, s.COLUMN_NAME, s.INDEX_NAME, s.NON_UNIQUE
-                FROM INFORMATION_SCHEMA.STATISTICS s
-                LEFT JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE c ON c.TABLE_SCHEMA = s.TABLE_SCHEMA
-                AND c.TABLE_NAME = s.TABLE_NAME AND c.COLUMN_NAME = s.COLUMN_NAME
-                WHERE s.INDEX_NAME <> 'PRIMARY' AND c.CONSTRAINT_NAME IS NULL AND s.TABLE_SCHEMA = DATABASE();");
-
-            foreach (var row in indexTable.Rows)
-            {
-                var current = GetOrCreateTableDictionary(result, row.GetString(0).Trim().ToLower());
-                if (!current.ContainsKey(row.GetString(1).Trim().ToLower()))
-                    current.Add(row.GetString(1).Trim().ToLower(), row.GetString(2).Trim().ToLower());
+                LogAndThrow(ex.WrapSqlException(sqlStatement));
+                throw;
             }
 
-            return result;
-
         }
 
-        private Dictionary<string, string> GetOrCreateTableDictionary(
-            Dictionary<string, Dictionary<string, string>> baseDictionary, string tableName)
+        protected override void DisposeManagedState()
         {
-            if (baseDictionary.ContainsKey(tableName))
-                return baseDictionary[tableName];
-            var result = new Dictionary<string, string>();
-            baseDictionary.Add(tableName, result);
-            return result;
-        }
-
-        private async Task<Dictionary<string, Dictionary<string, ForeignKeyData>>> GetForeignKeysAsync(MySqlConnection conn)
-        {
-
-            var result = new Dictionary<string, Dictionary<string, ForeignKeyData>>();
-
-            var indexTable = await FetchUsingConnectionAsync(conn, @"
-                SELECT i.TABLE_NAME, k.COLUMN_NAME, i.CONSTRAINT_NAME, k.REFERENCED_TABLE_NAME, k.REFERENCED_COLUMN_NAME 
-                FROM information_schema.TABLE_CONSTRAINTS i 
-                LEFT JOIN information_schema.KEY_COLUMN_USAGE k ON i.CONSTRAINT_NAME = k.CONSTRAINT_NAME 
-                WHERE i.CONSTRAINT_TYPE = 'FOREIGN KEY' AND i.TABLE_SCHEMA = DATABASE();");
-
-            foreach (var row in indexTable.Rows)
-            {
-                var current = GetOrCreateFKTableDictionary(result, row.GetString(0).Trim().ToLower());
-                if (!current.ContainsKey(row.GetString(1).Trim().ToLower()))
-                {
-                    var fkInfo = new ForeignKeyData
-                    {
-                        Name = row.GetString(2).Trim().ToLower(),
-                        RefTable = row.GetString(3).Trim().ToLower(),
-                        RefField = row.GetString(4).Trim().ToLower()
-                    };
-                    current.Add(row.GetString(1).Trim().ToLower(), fkInfo);
-                }
-            }
-
-            foreach (var entry in result)
-            {
-
-                var showCreateTable = await FetchUsingConnectionAsync(conn, string.Format("SHOW CREATE TABLE {0};", entry.Key));
-                var showCreateLines = showCreateTable.Rows[0].GetString(1).Split(new string[] { "," },
-                    StringSplitOptions.RemoveEmptyEntries);
-
-                foreach (var line in showCreateLines)
-                {
-                    if (line.Trim().ToUpper().StartsWith("CONSTRAINT"))
-                    {
-                        foreach (var column in entry.Value)
-                        {
-                            if (line.Trim().ToLower().Contains("`" + column.Value.Name + "`") 
-                                || line.Trim().ToLower().Contains(" " + column.Value.Name + " "))
-                            {
-                                column.Value.OnUpdate = DbForeignKeyActionType.Restrict;
-                                if (line.Trim().ToUpper().Contains("ON UPDATE CASCADE"))
-                                    column.Value.OnUpdate = DbForeignKeyActionType.Cascade;
-                                if (line.Trim().ToUpper().Contains("ON UPDATE SET NULL"))
-                                    column.Value.OnUpdate = DbForeignKeyActionType.SetNull;
-
-                                column.Value.OnDelete = DbForeignKeyActionType.Restrict;
-                                if (line.Trim().ToUpper().Contains("ON DELETE CASCADE"))
-                                    column.Value.OnDelete = DbForeignKeyActionType.Cascade;
-                                if (line.Trim().ToUpper().Contains("ON DELETE SET NULL"))
-                                    column.Value.OnDelete = DbForeignKeyActionType.SetNull;
-
-                                break;
-
-                            }
-                        }
-                    }
-                }
-
-
-            }
-
-            return result;
-
-        }
-
-        private Dictionary<string, ForeignKeyData> GetOrCreateFKTableDictionary(
-            Dictionary<string, Dictionary<string, ForeignKeyData>> baseDictionary, string tableName)
-        {
-            if (baseDictionary.ContainsKey(tableName))
-                return baseDictionary[tableName];
-            var result = new Dictionary<string, ForeignKeyData>();
-            baseDictionary.Add(tableName, result);
-            return result;
-        }
-                
-
-        private class ForeignKeyData
-        {
-            public string Name { get; set; }
-            public string RefTable { get; set; }
-            public string RefField { get; set; }
-            public DbForeignKeyActionType OnUpdate { get; set; }
-            public DbForeignKeyActionType OnDelete { get; set; } 
+            var myListener = MySqlTrace.Listeners.OfType<MySqlTraceListener>().Where(l => l.BelongsTo(this));
+            if (myListener != null) foreach (var item in myListener) MySqlTrace.Listeners.Remove(item);
         }
 
     }

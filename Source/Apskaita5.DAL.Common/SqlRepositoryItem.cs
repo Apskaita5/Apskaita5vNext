@@ -10,6 +10,7 @@ namespace Apskaita5.DAL.Common
     [Serializable]
     public sealed class SqlRepositoryItem
     {
+
         private string _token = string.Empty;
         private string _query = string.Empty;
         private string _usedByTypes = string.Empty;
@@ -20,8 +21,8 @@ namespace Apskaita5.DAL.Common
         /// </summary>
         public string Token
         {
-            get { return _token; }
-            set { _token = value.NotNullValue().Trim(); }
+            get { return _token ?? string.Empty; }
+            set { _token = value?.Trim() ?? string.Empty; }
         }
 
         /// <summary>
@@ -29,8 +30,8 @@ namespace Apskaita5.DAL.Common
         /// </summary>
         public string Query
         {
-            get { return _query; }
-            set { _query = value.NotNullValue().Trim(); }
+            get { return _query ?? string.Empty; }
+            set { _query = value?.Trim() ?? string.Empty; }
         }
 
         /// <summary>
@@ -39,8 +40,30 @@ namespace Apskaita5.DAL.Common
         /// </summary>
         public string UsedByTypes
         {
-            get { return _usedByTypes; }
-            set { _usedByTypes = value.NotNullValue().Trim(); }
+            get { return _usedByTypes ?? string.Empty; ; }
+            set { _usedByTypes = value?.Trim() ?? string.Empty; }
+        }
+
+
+        public SqlRepositoryItem() {}
+
+        internal SqlRepositoryItem(string delimitedString, string fieldDelimiter)
+        {    
+            _token = delimitedString.GetDelimitedField(0, fieldDelimiter)?.Trim() ?? string.Empty;
+            _query = delimitedString.GetDelimitedField(1, fieldDelimiter)?.Trim() ?? string.Empty;
+            _usedByTypes = delimitedString.GetDelimitedField(2, fieldDelimiter)?.Trim() ?? string.Empty;
+        }
+
+
+        /// <summary>
+        /// Converts the SQL repository entry into a delimited string:
+        /// {Token}{delimiter}{Query}{delimiter}{UsedByTypes}
+        /// </summary>
+        /// <param name="fieldDelimiter">field delimiter to use</param>
+        public string ToDelimitedString(string fieldDelimiter)
+        {
+            if (null == fieldDelimiter || fieldDelimiter.Length < 1) throw new ArgumentNullException(nameof(fieldDelimiter));
+            return string.Format("{0}{1}{2}{1}{3}", Token, fieldDelimiter, Query, UsedByTypes);
         }
 
     }

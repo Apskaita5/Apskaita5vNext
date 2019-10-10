@@ -1,0 +1,219 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <!-- 
+    Microsoft ResX Schema 
+    
+    Version 2.0
+    
+    The primary goals of this format is to allow a simple XML format 
+    that is mostly human readable. The generation and parsing of the 
+    various data types are done through the TypeConverter classes 
+    associated with the data types.
+    
+    Example:
+    
+    ... ado.net/XML headers & schema ...
+    <resheader name="resmimetype">text/microsoft-resx</resheader>
+    <resheader name="version">2.0</resheader>
+    <resheader name="reader">System.Resources.ResXResourceReader, System.Windows.Forms, ...</resheader>
+    <resheader name="writer">System.Resources.ResXResourceWriter, System.Windows.Forms, ...</resheader>
+    <data name="Name1"><value>this is my long string</value><comment>this is a comment</comment></data>
+    <data name="Color1" type="System.Drawing.Color, System.Drawing">Blue</data>
+    <data name="Bitmap1" mimetype="application/x-microsoft.net.object.binary.base64">
+        <value>[base64 mime encoded serialized .NET Framework object]</value>
+    </data>
+    <data name="Icon1" type="System.Drawing.Icon, System.Drawing" mimetype="application/x-microsoft.net.object.bytearray.base64">
+        <value>[base64 mime encoded string representing a byte array form of the .NET Framework object]</value>
+        <comment>This is a comment</comment>
+    </data>
+                
+    There are any number of "resheader" rows that contain simple 
+    name/value pairs.
+    
+    Each data row contains a name, and value. The row also contains a 
+    type or mimetype. Type corresponds to a .NET class that support 
+    text/value conversion through the TypeConverter architecture. 
+    Classes that don't support this are serialized and stored with the 
+    mimetype set.
+    
+    The mimetype is used for serialized objects, and tells the 
+    ResXResourceReader how to depersist the object. This is currently not 
+    extensible. For a given mimetype the value must be set accordingly:
+    
+    Note - application/x-microsoft.net.object.binary.base64 is the format 
+    that the ResXResourceWriter will generate, however the reader can 
+    read any of the formats listed below.
+    
+    mimetype: application/x-microsoft.net.object.binary.base64
+    value   : The object must be serialized with 
+            : System.Runtime.Serialization.Formatters.Binary.BinaryFormatter
+            : and then encoded with base64 encoding.
+    
+    mimetype: application/x-microsoft.net.object.soap.base64
+    value   : The object must be serialized with 
+            : System.Runtime.Serialization.Formatters.Soap.SoapFormatter
+            : and then encoded with base64 encoding.
+
+    mimetype: application/x-microsoft.net.object.bytearray.base64
+    value   : The object must be serialized into a byte array 
+            : using a System.ComponentModel.TypeConverter
+            : and then encoded with base64 encoding.
+    -->
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="CannotExecuteBatchException" xml:space="preserve">
+    <value>Cannot execute batch while a transaction is in progress.</value>
+  </data>
+  <data name="CreateDatabaseExceptionTransactionInProgress" xml:space="preserve">
+    <value>Cannot create a database while a transaction is in progress.</value>
+  </data>
+  <data name="DbSchemaDescription" xml:space="preserve">
+    <value>DB schema for the mysql database {0} using engine {1}.</value>
+  </data>
+  <data name="DbSchemaErrorFieldAndIndexObsolete" xml:space="preserve">
+    <value>Table {0} field {1} schema and index definitions are obsolete.</value>
+  </data>
+  <data name="DbSchemaErrorFieldMissing" xml:space="preserve">
+    <value>Field {0} in table {1} missing.</value>
+  </data>
+  <data name="DbSchemaErrorFieldObsolete" xml:space="preserve">
+    <value>Table {0} field {1} schema definition is obsolete.</value>
+  </data>
+  <data name="DbSchemaErrorFieldRedundant" xml:space="preserve">
+    <value>Field {0} in table {1} is obsolete.</value>
+  </data>
+  <data name="DbSchemaErrorIndexObsolete" xml:space="preserve">
+    <value>Table {0} field {1} index definition is obsolete.</value>
+  </data>
+  <data name="DbSchemaErrorTableMissing" xml:space="preserve">
+    <value>Table {0} missing.</value>
+  </data>
+  <data name="DbSchemaErrorTableObsolete" xml:space="preserve">
+    <value>Table {0} is obsolete.</value>
+  </data>
+  <data name="DropDatabaseExceptionTransactionInProgress" xml:space="preserve">
+    <value>Cannot drop database while transaction is in progress.</value>
+  </data>
+  <data name="EnumValueNotImplementedException" xml:space="preserve">
+    <value>Enum value {0} is not implemented.</value>
+  </data>
+  <data name="FieldsEmptyException" xml:space="preserve">
+    <value>Fields cannot be empty.</value>
+  </data>
+  <data name="GetSchemaErrorsExceptionTransactionInProgress" xml:space="preserve">
+    <value>Cannot get schema errors while a transaction is in progress.</value>
+  </data>
+  <data name="GetSchemaExceptionNullDatabase" xml:space="preserve">
+    <value>Database is not set, cannot get schema.</value>
+  </data>
+  <data name="GetSchemaExceptionTransactionInProgress" xml:space="preserve">
+    <value>Cannot get schema while a transaction is in progress.</value>
+  </data>
+  <data name="InvalidFieldComparisonException" xml:space="preserve">
+    <value>Cannot compare fields with diferent names.</value>
+  </data>
+  <data name="InvalidTransactionType" xml:space="preserve">
+    <value>Type {0} is not a valid MySql transaction.</value>
+  </data>
+  <data name="ManualRollbackException" xml:space="preserve">
+    <value>Manual rollback.</value>
+  </data>
+  <data name="NativeTypeUnknownException" xml:space="preserve">
+    <value>MySql database data type {0} is unknown.</value>
+  </data>
+  <data name="NonSqlExceptionDescription" xml:space="preserve">
+    <value>Exception of type '{0}', message: {1}</value>
+  </data>
+  <data name="NoTransactionToCommitException" xml:space="preserve">
+    <value>No transaction to commit.</value>
+  </data>
+  <data name="QueryTokenEmptyException" xml:space="preserve">
+    <value>Query token cannot be empty.</value>
+  </data>
+  <data name="SqlExceptionAccessDenied" xml:space="preserve">
+    <value>Access denied.</value>
+  </data>
+  <data name="SqlExceptionMessage" xml:space="preserve">
+    <value>MySql server returned an exception: Code={0}; ErrorCode={1}; HResult={2}; Number={3}; SqlState={4}; Message='{5}'</value>
+  </data>
+  <data name="SqlExceptionMessageRollbackFailed" xml:space="preserve">
+    <value>WARNING. Critical SQL transaction error, failed to rollback the transaction.{6}MySql server returned an exception: Code={0}; ErrorCode={1}; HResult={2}; Number={3}; SqlState={4}; Message='{5}'{6}Initial exception that caused the rollback:{6}{7}{6}SQL statement/query that caused the exception:{6}{8}</value>
+  </data>
+  <data name="SqlExceptionMessageWithStatement" xml:space="preserve">
+    <value>MySql server returned an exception: Code={0}; ErrorCode={1}; HResult={2}; Number={3}; SqlState={4}; Message='{5}'{6}SQL statement/query that caused the exception:{6}{7}</value>
+  </data>
+  <data name="SqlExceptionUnableToConnect" xml:space="preserve">
+    <value>Unable to connect to the MySql server. Server is down, host address is invalid or connection is blocked by a firewall.</value>
+  </data>
+  <data name="SqlExceptionUnknownException" xml:space="preserve">
+    <value>Unknown exception occured while opening connection to the MySql server: {0}</value>
+  </data>
+  <data name="CannotStartTransactionException" xml:space="preserve">
+    <value>Cannot create a transaction while another transaction is in progress.</value>
+  </data>
+  <data name="DisableForeignKeysExceptionTransactionNull" xml:space="preserve">
+    <value>Cannot disable foreign keys without a transaction.</value>
+  </data>
+  <data name="CurrentDatabaseNullException" xml:space="preserve">
+    <value>The Sql agent has no database specified.</value>
+  </data>
+  <data name="NotSupportedExecutionTypeException" xml:space="preserve">
+    <value>Generic parameter type {0} is not supported by MySqlAgent.ExecuteCommandInt.</value>
+  </data>
+</root>

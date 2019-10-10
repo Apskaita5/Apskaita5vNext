@@ -9,6 +9,8 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using Apskaita5.DAL.Common;
 using Apskaita5.Common;
+using System.Threading;
+using Apskaita5.DAL.Common.DbSchema;
 
 namespace DeveloperUtils
 {
@@ -40,7 +42,7 @@ namespace DeveloperUtils
             }
         }
 
-        private void button1_Click(object sender, EventArgs e)
+        private async void button1_Click(object sender, EventArgs e)
         {
 
             if (_agent.CurrentDatabase.IsNullOrWhiteSpace())
@@ -55,15 +57,25 @@ namespace DeveloperUtils
                 return;
             }
 
+            var currentCursor = this.Cursor;
+            this.Cursor = Cursors.WaitCursor;
+            this.button1.Enabled = false;
+
             try
             {
-                _errors = _agent.GetDbSchemaErrorsAsync(this.schemaPathTextBox.Text).Result;
+                _errors = await Task.Run(async () => 
+                    await _agent.GetDefaultSchemaManager().GetDbSchemaErrorsAsync(this.schemaPathTextBox.Text, null, CancellationToken.None));
             }
             catch (Exception ex)
             {
+                this.Cursor = currentCursor;
+                this.button1.Enabled = true;
                 MessageBox.Show(ex.Message, "", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
+
+            this.Cursor = currentCursor;
+            this.button1.Enabled = true;
 
             bindingSource1.RaiseListChangedEvents = false;
             bindingSource1.DataSource = _errors;

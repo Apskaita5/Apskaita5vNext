@@ -106,6 +106,42 @@ namespace Apskaita5.DAL.Common.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Cannot convert SqlRepository to Dictionary due to duplicate tokens:{0}.
+        /// </summary>
+        internal static string CannotConvertToDictionaryException {
+            get {
+                return ResourceManager.GetString("CannotConvertToDictionaryException", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Cannot merge SqlRepository to Dictionary due to duplicate tokens:{0}.
+        /// </summary>
+        internal static string CannotMergeToDictionaryException {
+            get {
+                return ResourceManager.GetString("CannotMergeToDictionaryException", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Initialization context for type &apos;{0}&apos; was not found. Query: &apos;{1}&apos;. Parameters: {2}.
+        /// </summary>
+        internal static string DbEntityContextNotFoundException {
+            get {
+                return ResourceManager.GetString("DbEntityContextNotFoundException", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Entity of type &apos;{0}&apos; with id &apos;{1}&apos; was not found in the database..
+        /// </summary>
+        internal static string DbEntityNotFoundException {
+            get {
+                return ResourceManager.GetString("DbEntityNotFoundException", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Cannot autoincrement non integer value..
         /// </summary>
         internal static string DbFieldSchema_AutoincrementInvalid {
@@ -196,6 +232,24 @@ namespace Apskaita5.DAL.Common.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to base schema.
+        /// </summary>
+        internal static string DbSchema_BaseSchema {
+            get {
+                return ResourceManager.GetString("DbSchema_BaseSchema", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to No base schema found..
+        /// </summary>
+        internal static string DbSchema_BaseSchemaNotFound {
+            get {
+                return ResourceManager.GetString("DbSchema_BaseSchemaNotFound", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Data errors for database:.
         /// </summary>
         internal static string DbSchema_ErrorStringHeader {
@@ -214,6 +268,42 @@ namespace Apskaita5.DAL.Common.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to extension.
+        /// </summary>
+        internal static string DbSchema_Extension {
+            get {
+                return ResourceManager.GetString("DbSchema_Extension", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Guid string is invalid..
+        /// </summary>
+        internal static string DbSchema_GuidInvalid {
+            get {
+                return ResourceManager.GetString("DbSchema_GuidInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Invalid Guid for schema: {0}..
+        /// </summary>
+        internal static string DbSchema_InvalidGuidForSchema {
+            get {
+                return ResourceManager.GetString("DbSchema_InvalidGuidForSchema", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Multiple base schemas found..
+        /// </summary>
+        internal static string DbSchema_MultipleBaseSchemas {
+            get {
+                return ResourceManager.GetString("DbSchema_MultipleBaseSchemas", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Database has no tables..
         /// </summary>
         internal static string DbSchema_TableListEmpty {
@@ -223,11 +313,29 @@ namespace Apskaita5.DAL.Common.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Table {0} for extension {1} clashes with a table for {2}.
+        /// </summary>
+        internal static string DbSchema_TableNameClash {
+            get {
+                return ResourceManager.GetString("DbSchema_TableNameClash", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to No SQL statement could be empty..
         /// </summary>
         internal static string DbSchemaError_EmptySqlStatementInList {
             get {
                 return ResourceManager.GetString("DbSchemaError_EmptySqlStatementInList", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to DB schema folder &apos;{0}&apos; does not exist..
+        /// </summary>
+        internal static string DbSchemaFolderDoesNotExistException {
+            get {
+                return ResourceManager.GetString("DbSchemaFolderDoesNotExistException", resourceCulture);
             }
         }
         
@@ -277,6 +385,15 @@ namespace Apskaita5.DAL.Common.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Duplicate tokens in SqlRepository file &apos;{0}&apos;. {1}.
+        /// </summary>
+        internal static string DuplicateTokensInRepositoryException {
+            get {
+                return ResourceManager.GetString("DuplicateTokensInRepositoryException", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to File {0} not found..
         /// </summary>
         internal static string FileNotFound {
@@ -291,6 +408,24 @@ namespace Apskaita5.DAL.Common.Properties {
         internal static string IndexValueOutOfRange {
             get {
                 return ResourceManager.GetString("IndexValueOutOfRange", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Initialization query token is not set for type &apos;{0}&apos;..
+        /// </summary>
+        internal static string InitQueryTokenNullException {
+            get {
+                return ResourceManager.GetString("InitQueryTokenNullException", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to File &apos;{0}&apos; format is invalid: {1}.
+        /// </summary>
+        internal static string InvalidSqlRepositoryFileFormatException {
+            get {
+                return ResourceManager.GetString("InvalidSqlRepositoryFileFormatException", resourceCulture);
             }
         }
         
@@ -394,6 +529,15 @@ namespace Apskaita5.DAL.Common.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Column named &quot;{0}&quot; does not exist in the datatable..
+        /// </summary>
+        internal static string LightDataRow_ColumnDoesNotExist {
+            get {
+                return ResourceManager.GetString("LightDataRow_ColumnDoesNotExist", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to The column specified by columnName cannot be found..
         /// </summary>
         internal static string LightDataRow_ColumnNotFoundByName {
@@ -435,6 +579,15 @@ namespace Apskaita5.DAL.Common.Properties {
         internal static string LightDataRow_DataTypeMismatch {
             get {
                 return ResourceManager.GetString("LightDataRow_DataTypeMismatch", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Data of type {0} cannot be assigned to LightDataColumn of type {1}..
+        /// </summary>
+        internal static string LightDataRow_DataTypeMismatchException {
+            get {
+                return ResourceManager.GetString("LightDataRow_DataTypeMismatchException", resourceCulture);
             }
         }
         
@@ -511,6 +664,24 @@ namespace Apskaita5.DAL.Common.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Type {0} does not support micro ORM functionality..
+        /// </summary>
+        internal static string MicroOrmIsNotSupportedByTypeException {
+            get {
+                return ResourceManager.GetString("MicroOrmIsNotSupportedByTypeException", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Type {0} has no micro ORM field mappings..
+        /// </summary>
+        internal static string NoFieldMapsForMicroOrmException {
+            get {
+                return ResourceManager.GetString("NoFieldMapsForMicroOrmException", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Source string contains no fields..
         /// </summary>
         internal static string NoFieldsInString {
@@ -525,6 +696,33 @@ namespace Apskaita5.DAL.Common.Properties {
         internal static string NoFilesInFolder {
             get {
                 return ResourceManager.GetString("NoFilesInFolder", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to SqlAgent has no database assigned..
+        /// </summary>
+        internal static string SchemaManagerRequiresDatabaseException {
+            get {
+                return ResourceManager.GetString("SchemaManagerRequiresDatabaseException", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Sql agent implemention id &apos;{0}&apos; does not match Orm service implementation id &apos;{1}&apos;..
+        /// </summary>
+        internal static string SqlAgentAndOrmServiceTypeMismatchException {
+            get {
+                return ResourceManager.GetString("SqlAgentAndOrmServiceTypeMismatchException", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Sql agent implemention id &apos;{0}&apos; does not match schema manager implementation id &apos;{1}&apos;..
+        /// </summary>
+        internal static string SqlAgentAndSchemaManagerTypeMismatchException {
+            get {
+                return ResourceManager.GetString("SqlAgentAndSchemaManagerTypeMismatchException", resourceCulture);
             }
         }
         
@@ -687,6 +885,69 @@ namespace Apskaita5.DAL.Common.Properties {
         internal static string SqlDictionary_UnknownSqlQueryToken {
             get {
                 return ResourceManager.GetString("SqlDictionary_UnknownSqlQueryToken", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to SQL query dictionary is not available for SQL implementation {0}..
+        /// </summary>
+        internal static string SqlDictionaryNotAvailableException {
+            get {
+                return ResourceManager.GetString("SqlDictionaryNotAvailableException", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to SQL dictionary is not configured..
+        /// </summary>
+        internal static string SqlDictionaryNotConfiguredException {
+            get {
+                return ResourceManager.GetString("SqlDictionaryNotConfiguredException", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Int32 value {0} is not defined for enumeration type {1}..
+        /// </summary>
+        internal static string TypeConverters_EnumNumericValueInvalid {
+            get {
+                return ResourceManager.GetString("TypeConverters_EnumNumericValueInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to String value &quot;{0}&quot; is not defined for enumeration type {1}..
+        /// </summary>
+        internal static string TypeConverters_EnumStringValueInvalid {
+            get {
+                return ResourceManager.GetString("TypeConverters_EnumStringValueInvalid", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Type {0} cannot be converted to type (1) (value.ToString() = {2})..
+        /// </summary>
+        internal static string TypeConverters_InvalidFormatException {
+            get {
+                return ResourceManager.GetString("TypeConverters_InvalidFormatException", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Numeric value {0} cannot be convrted to type {1} because it is out of value ranges for the type..
+        /// </summary>
+        internal static string TypeConverters_OverflowException {
+            get {
+                return ResourceManager.GetString("TypeConverters_OverflowException", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Type {0} is not an enumeration..
+        /// </summary>
+        internal static string TypeConverters_ValueIsNotEnumeration {
+            get {
+                return ResourceManager.GetString("TypeConverters_ValueIsNotEnumeration", resourceCulture);
             }
         }
     }

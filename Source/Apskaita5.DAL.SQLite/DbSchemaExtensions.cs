@@ -2,15 +2,35 @@
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using System.Text;
+using Apskaita5.DAL.Common.DbSchema;
+using System.Data.SQLite;
 using Apskaita5.DAL.Common;
 
-namespace Apskaita5.DAL.Sqlite
+namespace Apskaita5.DAL.SQLite
 {
     internal static class DbSchemaExtensions
     {
 
         private const string DateTimeFormatString = "yyyy-MM-dd HH:mm:ss.fff" ;
+        internal const string NativeActionType_Cascade = "CASCADE";
+        internal const string NativeActionType_SetNull = "SET NULL";
+        internal const string NativeActionType_Restrict = "RESTRICT";
+        private const string NativeType_Float = "FLOAT";
+
+        private const string NativeType_Real = "REAL";
+        private const string NativeType_Double = "DOUBLE";
+        private const string NativeType_Decimal = "DECIMAL";
+        private const string NativeType_TinyInt = "TINYINT";
+        private const string NativeType_SmallInt = "SMALLINT";
+        private const string NativeType_MediumInt = "MEDIUMINT";
+        private const string NativeType_Int = "INTEGER";
+        private const string NativeType_Int_Alt = "INT";
+        private const string NativeType_BigInt = "BIGINT";
+        private const string NativeType_DateTime = "DATETIME";
+        private const string NativeType_Date = "DATE";
+        private const string NativeType_VarChar = "VARCHAR";
+        private const string NativeType_Text = "TEXT";
+        private const string NativeType_Blob = "BLOB";
 
 
         /// <summary>
@@ -91,11 +111,11 @@ namespace Apskaita5.DAL.Sqlite
         internal static bool FieldSchemaMatch(this DbFieldSchema field1, DbFieldSchema field2)
         {
 
-            if (field1 == null) throw new ArgumentNullException("field1");
-            if (field2 == null) throw new ArgumentNullException("field2");
+            if (field1.IsNull()) throw new ArgumentNullException(nameof(field1));
+            if (field2.IsNull()) throw new ArgumentNullException(nameof(field2));
 
-            if (field1.Name.Trim().ToLower() != field2.Name.Trim().ToLower())
-                throw new ArgumentException("Cannot compare columns with diferent names.");
+            if (!field1.Name.EqualsByConvention(field2.Name))
+                throw new ArgumentException(Properties.Resources.DbSchemaErrorExceptionFieldMismatch);
 
             if (!field1.DataType.IsEquivalentTo(field2.DataType))
                 return false;
@@ -103,10 +123,21 @@ namespace Apskaita5.DAL.Sqlite
                 return false;
             if (field1.DataType.IsDbDataTypeInteger() && field1.Autoincrement != field2.Autoincrement)
                 return false;
-            if ((field1.IndexType == DbIndexType.Primary && field2.IndexType != DbIndexType.Primary)
-                || (field1.IndexType != DbIndexType.Primary && field2.IndexType == DbIndexType.Primary))
-                return false;
             
+            // primary and foreign keys are part of field signature in sqlite
+            if (field1.IndexType != field2.IndexType && (field1.IndexType == DbIndexType.ForeignKey
+                || field1.IndexType == DbIndexType.ForeignPrimary || field1.IndexType == DbIndexType.Primary
+                || field2.IndexType == DbIndexType.ForeignKey || field2.IndexType == DbIndexType.ForeignPrimary
+                || field2.IndexType == DbIndexType.Primary))
+                return false;
+
+            if ((field1.IndexType == DbIndexType.ForeignKey || field1.IndexType == DbIndexType.ForeignPrimary)
+                && (!field1.RefField.EqualsByConvention(field2.RefField)
+                || !field1.RefTable.EqualsByConvention(field2.RefTable)
+                || field1.OnDeleteForeignKey != field2.OnDeleteForeignKey
+                || field1.OnUpdateForeignKey != field2.OnUpdateForeignKey))
+                return false;
+
             return true;
 
         }
@@ -120,21 +151,20 @@ namespace Apskaita5.DAL.Sqlite
         internal static bool FieldIndexMatch(this DbFieldSchema field1, DbFieldSchema field2)
         {
 
-            if (field1 == null) throw new ArgumentNullException("field1");
-            if (field2 == null) throw new ArgumentNullException("field2");
+            if (field1.IsNull()) throw new ArgumentNullException(nameof(field1));
+            if (field2.IsNull()) throw new ArgumentNullException(nameof(field2));
 
-            if (field1.Name.Trim().ToLower() != field2.Name.Trim().ToLower())
-                throw new ArgumentException("Cannot compare columns with diferent names.");
+            if (!field1.Name.EqualsByConvention(field2.Name))
+                throw new ArgumentException(Properties.Resources.DbSchemaErrorExceptionFieldMismatch);
 
-            if (field1.IndexType != field2.IndexType)
-                return false;
-            if (field1.IndexType == DbIndexType.ForeignKey && (field1.RefField.Trim().ToLower()
-                != field2.RefField.Trim().ToLower() || field1.RefTable.Trim().ToLower()
-                != field2.RefTable.Trim().ToLower() || field1.OnDeleteForeignKey != field2.OnDeleteForeignKey
-                || field1.OnUpdateForeignKey != field2.OnUpdateForeignKey))
-                return false;
+            // primary and foreign keys are part of field signature in sqlite, i.e. checked with signature not with indexes
+            if (field1.IndexType != field2.IndexType && (field1.IndexType == DbIndexType.ForeignKey
+                || field1.IndexType == DbIndexType.ForeignPrimary || field1.IndexType == DbIndexType.Primary
+                || field2.IndexType == DbIndexType.ForeignKey || field2.IndexType == DbIndexType.ForeignPrimary
+                || field2.IndexType == DbIndexType.Primary))
+                return true;
 
-            return true;
+            return (field1.IndexType == field2.IndexType);
 
         }
 
@@ -145,61 +175,113 @@ namespace Apskaita5.DAL.Sqlite
         internal static string GetNativeDataType(this DbFieldSchema schema)
         {
 
-            if (schema == null) throw new ArgumentNullException("schema");
+            if (schema.IsNull()) throw new ArgumentNullException(nameof(schema));
 
             switch (schema.DataType)
             {
                 case DbDataType.Float:
-                    return "FLOAT";
+                    return NativeType_Float;
                 case DbDataType.Real:
-                    return "REAL";
+                    return NativeType_Real;
                 case DbDataType.Double:
-                    return "DOUBLE";
+                    return NativeType_Double;
                 case DbDataType.Decimal:
-                    return "DECIMAL";
+                    return NativeType_Decimal;
                 case DbDataType.IntegerTiny:
-                    return "TINYINT";
+                    return NativeType_TinyInt;
                 case DbDataType.IntegerSmall:
-                    return "SMALLINT";
+                    return NativeType_SmallInt;
                 case DbDataType.IntegerMedium:
-                    return "MEDIUMINT";
+                    return NativeType_MediumInt;
                 case DbDataType.Integer:
-                    return "INTEGER";
+                    return NativeType_Int;
                 case DbDataType.IntegerBig:
-                    return "BIGINT";
+                    return NativeType_BigInt;
                 case DbDataType.TimeStamp:
-                    return "DATETIME";
+                    return NativeType_DateTime;
                 case DbDataType.Date:
-                    return "DATE";
+                    return NativeType_Date;
                 case DbDataType.DateTime:
-                    return "DATETIME";
+                    return NativeType_DateTime;
                 case DbDataType.Time:
-                    return "DATETIME";
+                    return NativeType_DateTime;
                 case DbDataType.Char:
-                    return "VARCHAR";
+                    return NativeType_VarChar;
                 case DbDataType.VarChar:
-                    return "VARCHAR";
+                    return NativeType_VarChar;
                 case DbDataType.Text:
-                    return "TEXT";
+                    return NativeType_Text;
                 case DbDataType.TextMedium:
-                    return "TEXT";
+                    return NativeType_Text;
                 case DbDataType.TextLong:
-                    return "TEXT";
+                    return NativeType_Text;
                 case DbDataType.BlobTiny:
-                    return "BLOB";
+                    return NativeType_Blob;
                 case DbDataType.Blob:
-                    return "BLOB";
+                    return NativeType_Blob;
                 case DbDataType.BlobMedium:
-                    return "BLOB";
+                    return NativeType_Blob;
                 case DbDataType.BlobLong:
-                    return "BLOB";
+                    return NativeType_Blob;
                 case DbDataType.Enum:
-                    return "VARCHAR";
+                    return NativeType_Blob;
                 default:
-                    throw new NotImplementedException(string.Format("Enum value {0} is not implemented.",
+                    throw new NotImplementedException(string.Format(Properties.Resources.EnumValueNotImplementedException,
                         schema.DataType.ToString()));
             }
 
+        }
+
+        /// <summary>
+        /// Gets a base field data type by it's native definition.
+        /// </summary>
+        /// <param name="definition">native definition of the data type</param>
+        internal static DbDataType GetBaseDataType(this string definition)
+        {
+
+            var nativeName = definition ?? throw new ArgumentNullException(nameof(definition));
+            if (nativeName.Contains("("))
+                nativeName = nativeName.Substring(0, nativeName.IndexOf("(", StringComparison.Ordinal));
+            if (nativeName.Contains(" "))
+                nativeName = nativeName.Substring(0, nativeName.IndexOf(" ", StringComparison.Ordinal));
+            nativeName = nativeName.Trim().ToUpper();
+
+            switch (nativeName)
+            {
+                case NativeType_Blob:
+                    return DbDataType.Blob;
+                case NativeType_Date:
+                    return DbDataType.Date;
+                case NativeType_DateTime:
+                    return DbDataType.DateTime;
+                case NativeType_Decimal:
+                    return DbDataType.Decimal;
+                case NativeType_Double:
+                    return DbDataType.Double;
+                case NativeType_Float:
+                    return DbDataType.Float;
+                case NativeType_Int_Alt:
+                    return DbDataType.Integer;
+                case NativeType_Int:
+                    return DbDataType.Integer;
+                case NativeType_BigInt:
+                    return DbDataType.IntegerBig;
+                case NativeType_MediumInt:
+                    return DbDataType.IntegerMedium;
+                case NativeType_SmallInt:
+                    return DbDataType.IntegerSmall;
+                case NativeType_TinyInt:
+                    return DbDataType.IntegerTiny;
+                case NativeType_Real:
+                    return DbDataType.Real;
+                case NativeType_Text:
+                    return DbDataType.Text;
+                case NativeType_VarChar:
+                    return DbDataType.VarChar;
+                default:
+                    throw new NotImplementedException(string.Format(
+                        Properties.Resources.NativeTypeNotImplementedException, definition));
+            }
         }
 
         /// <summary>
@@ -211,13 +293,13 @@ namespace Apskaita5.DAL.Sqlite
             switch (actionType)
             {
                 case DbForeignKeyActionType.Restrict:
-                    return "RESTRICT";
+                    return NativeActionType_Restrict;
                 case DbForeignKeyActionType.Cascade:
-                    return "CASCADE";
+                    return NativeActionType_Cascade;
                 case DbForeignKeyActionType.SetNull:
-                    return "SET NULL";
+                    return NativeActionType_SetNull;
                 default:
-                    throw new NotImplementedException(string.Format("Enum value {0} is not implemented.",
+                    throw new NotImplementedException(string.Format(Properties.Resources.EnumValueNotImplementedException,
                         actionType.ToString()));
             }
         }
@@ -227,14 +309,6 @@ namespace Apskaita5.DAL.Sqlite
 
             switch (fieldType)
             {
-                case DbDataType.Blob:
-                    throw new NotSupportedException("Cannot add new NOT NULL column of type " + "BLOB because BLOB type does not have default value.");
-                case DbDataType.BlobLong:
-                    throw new NotSupportedException("Cannot add new NOT NULL column of type " + "BLOB because BLOB type does not have default value.");
-                case DbDataType.BlobMedium:
-                    throw new NotSupportedException("Cannot add new NOT NULL column of type " + "BLOB because BLOB type does not have default value.");
-                case DbDataType.BlobTiny:
-                    throw new NotSupportedException("Cannot add new NOT NULL column of type " + "BLOB because BLOB type does not have default value.");
                 case DbDataType.Char:
                     return "''";
                 case DbDataType.Date:
@@ -252,7 +326,7 @@ namespace Apskaita5.DAL.Sqlite
                     }
                     catch (Exception ex)
                     {
-                        throw new Exception("Failed to find the default enum value.", ex);
+                        throw new Exception(Properties.Resources.NoDefaultEnumValueException, ex);
                     }
                 case DbDataType.Float:
                     return "0";
@@ -281,7 +355,7 @@ namespace Apskaita5.DAL.Sqlite
                 case DbDataType.VarChar:
                     return "''";
                 default:
-                    throw new NotSupportedException(string.Format("Cannot add new NOT NULL column of type {0} because this type does not have a default value.",
+                    throw new NotSupportedException(string.Format(Properties.Resources.CannotAddNewNotNullFieldException,
                         fieldType.ToString()));
             }
 
@@ -293,32 +367,32 @@ namespace Apskaita5.DAL.Sqlite
         /// <param name="schema">the canonical field schema to translate</param>
         /// <param name="addSafe">whether the definition should be safe for add field,
         /// i.e. dto add default value for not null fields</param>
-        internal static string GetFieldDefinition(this DbFieldSchema schema, bool addSafe)
+        internal static string GetFieldDefinition(this DbFieldSchema schema, bool addSafe, SqlAgentBase agent)
         {
 
-            if (schema == null) throw new ArgumentNullException("schema");
+            if (schema.IsNull()) throw new ArgumentNullException(nameof(schema));
+            if (agent.IsNull()) throw new ArgumentNullException(nameof(agent));
 
             if (schema.Autoincrement) schema.DataType = DbDataType.Integer;
 
-            var result = schema.Name.Trim().ToLower() + " " + schema.GetNativeDataType();
-
+            var result = string.Format("{0} {1}", schema.Name.ToConventional(agent), schema.GetNativeDataType());
+            
             if ((schema.DataType == DbDataType.Char || schema.DataType == DbDataType.VarChar)
                 && schema.Length > 0)
             {
-                result = result + "(" + schema.Length.ToString(CultureInfo.InvariantCulture) + ")";
-            }
-            
+                result = string.Format("{0}({1})", result, schema.Length.ToString(CultureInfo.InvariantCulture));
+            }            
 
             if (schema.NotNull)
             {
                 if (addSafe)
                 {
-                    result = result + " DEFAULT " + GetDefaultValueForFieldType(schema.DataType, 
-                        schema.EnumValues) + " NOT NULL";
+                    result = string.Format("{0} DEFAULT {1} NOT NULL", result, 
+                        GetDefaultValueForFieldType(schema.DataType, schema.EnumValues));
                 }
                 else
                 {
-                    result = result + " NOT NULL";
+                    result = string.Format("{0} NOT NULL", result);
                 }
             }
 
@@ -334,6 +408,12 @@ namespace Apskaita5.DAL.Sqlite
                 }
             }
 
+            if (schema.IndexType == DbIndexType.ForeignKey || schema.IndexType == DbIndexType.ForeignPrimary)
+                result = result + string.Format(" REFERENCES {0}({1}) ON UPDATE {2} ON DELETE {3}",
+                    schema.RefTable.ToConventional(agent), schema.RefField.ToConventional(agent), 
+                    schema.OnUpdateForeignKey.GetNativeActionType(),
+                    schema.OnDeleteForeignKey.GetNativeActionType());
+
             return result;
 
         }
@@ -344,62 +424,40 @@ namespace Apskaita5.DAL.Sqlite
         /// </summary>
         /// <param name="schema">a canonical schema of the new database table field</param>
         /// <param name="tblName">the database table to add the field for</param>
-        internal static List<string> GetAddFieldStatements(this DbFieldSchema schema, string tblName)
+        internal static List<string> GetAddFieldStatements(this DbFieldSchema schema, string tblName, SqlAgentBase agent)
         {
 
-            if (schema == null) throw new ArgumentNullException("schema");
-            if (tblName == null || string.IsNullOrEmpty(tblName.Trim())) throw new ArgumentNullException("tblName");
+            if (schema.IsNull()) throw new ArgumentNullException(nameof(schema));
+            if (agent.IsNull()) throw new ArgumentNullException(nameof(agent));
+            if (tblName.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(tblName));
 
-            var alterStatement = string.Format("ALTER TABLE {0} ADD COLUMN {1}",
-                tblName, schema.GetFieldDefinition(true));
-            if (schema.IndexType == DbIndexType.ForeignKey)
-                alterStatement = alterStatement + string.Format(" CONSTRAINT {0} REFERENCES {1}({2}) ON UPDATE {3} ON DELETE {4}", 
-                    schema.IndexName.Trim().ToLower(), schema.RefTable.Trim().ToLower(), 
-                    schema.RefField.Trim().ToLower(), schema.OnUpdateForeignKey.GetNativeActionType(), 
-                    schema.OnDeleteForeignKey.GetNativeActionType());
-            alterStatement = alterStatement + ";";
+            var alterStatement = string.Format("ALTER TABLE {0} ADD COLUMN {1};",
+                tblName.ToConventional(agent), schema.GetFieldDefinition(true, agent));
 
             var result = new List<string>(){ alterStatement };
 
-            result.AddRange(schema.GetAddIndexStatements(tblName));
+            result.AddRange(schema.GetAddIndexStatements(tblName, agent));
 
             return result;
 
         }
-
-        /// <summary>
-        /// Gets the mysql native foreign key schema definition.
-        /// </summary>
-        /// <param name="schema">the canonical field schema to translate</param>
-        internal static string GetForeignKeyDefinition(this DbFieldSchema schema)
-        {
-
-            if (schema == null) throw new ArgumentNullException("schema");
-
-            if (schema.IndexType != DbIndexType.ForeignKey)
-                return string.Empty;
-
-            return string.Format("CONSTRAINT {0} FOREIGN KEY({1}) REFERENCES {2}({3}) ON DELETE {4} ON UPDATE {5}",
-                schema.IndexName.Trim().ToLower(), schema.Name.Trim().ToLower(),
-                schema.RefTable.Trim().ToLower(), schema.RefField.Trim().ToLower(),
-                schema.OnDeleteForeignKey.GetNativeActionType(), schema.OnUpdateForeignKey.GetNativeActionType());
-
-        }
-
+                
         /// <summary>
         /// Gets a list of statements required to add a new index using the field schema specified.
         /// (also adds a foreign key if required)
         /// </summary>
         /// <param name="schema">a canonical database table field schema to apply</param>
         /// <param name="tblName">the database table to add the index for</param>
-        internal static List<string> GetAddIndexStatements(this DbFieldSchema schema, string tblName)
+        internal static List<string> GetAddIndexStatements(this DbFieldSchema schema, string tblName, SqlAgentBase agent)
         {
 
-            if (schema == null) throw new ArgumentNullException("schema");
-            if (tblName == null || string.IsNullOrEmpty(tblName.Trim())) 
-                throw new ArgumentNullException("tblName");
+            if (schema.IsNull()) throw new ArgumentNullException(nameof(schema));
+            if (tblName.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(tblName));
+            if (agent.IsNull()) throw new ArgumentNullException(nameof(agent));
 
-            if (schema.IndexType == DbIndexType.None || schema.IndexType == DbIndexType.Primary)
+            // No backing index for foreign key in sqlite
+            if (schema.IndexType == DbIndexType.None || schema.IndexType == DbIndexType.Primary
+                || schema.IndexType == DbIndexType.ForeignKey || schema.IndexType == DbIndexType.ForeignPrimary)
                 return new List<string>();
 
             string result;
@@ -407,18 +465,13 @@ namespace Apskaita5.DAL.Sqlite
             if (schema.IndexType == DbIndexType.Simple)
             {
                 result = string.Format("CREATE INDEX {0} ON {1}({2});", 
-                    schema.IndexName.Trim().ToLower(), tblName.Trim().ToLower(), schema.Name.Trim().ToLower());
+                    schema.IndexName.ToConventional(agent), tblName.ToConventional(agent), 
+                    schema.Name.ToConventional(agent));
             }
-            else if (schema.IndexType == DbIndexType.Unique)
+            else
             {
                 result = string.Format("CREATE UNIQUE INDEX {0} ON {1}({2});",
-                    schema.IndexName.Trim().ToLower(), tblName.Trim().ToLower(), schema.Name.Trim().ToLower());
-            }
-            else // backing foreign key index
-            {
-                result = string.Format("CREATE INDEX {0} ON {1}({2});",
-                    schema.IndexName.Trim().ToLower() + "_fkindex", 
-                    tblName.Trim().ToLower(), schema.Name.Trim().ToLower());
+                    schema.IndexName.ToConventional(agent), tblName.ToConventional(agent), schema.Name.ToConventional(agent));
             }
 
             return new List<string>() { result };
@@ -429,15 +482,16 @@ namespace Apskaita5.DAL.Sqlite
         /// Gets a list of statements required to drop the index.(also drops a foreign key if required)
         /// </summary>
         /// <param name="schema">the field schema containing the index to drop</param>
-        internal static List<string> GetDropIndexStatements(this DbFieldSchema schema)
+        internal static List<string> GetDropIndexStatements(this DbFieldSchema schema, SqlAgentBase agent)
         {
 
-            if (schema == null) throw new ArgumentNullException("schema");
-            
+            if (schema.IsNull()) throw new ArgumentNullException(nameof(schema));
+            if (agent.IsNull()) throw new ArgumentNullException(nameof(agent));
+
             if (schema.IndexType != DbIndexType.Simple && schema.IndexType != DbIndexType.Unique)
                 return new List<string>();
 
-            return new List<string>() { string.Format("DROP INDEX {0};", schema.IndexName.Trim().ToLower()) };
+            return new List<string>() { string.Format("DROP INDEX {0};", schema.IndexName.ToConventional(agent)) };
 
         }
 
@@ -446,27 +500,24 @@ namespace Apskaita5.DAL.Sqlite
         /// Gets a list of statements required to add a new database table using the schema specified.
         /// </summary>
         /// <param name="schema">a canonical schema of the new database table</param>
-        internal static List<string> GetCreateTableStatements(this DbTableSchema schema)
+        internal static List<string> GetCreateTableStatements(this DbTableSchema schema, SqlAgentBase agent)
         {
 
-            if (schema == null) throw new ArgumentNullException("schema");
+            if (schema.IsNull()) throw new ArgumentNullException(nameof(schema));
+            if (agent.IsNull()) throw new ArgumentNullException(nameof(agent));
+
+            var lines = schema.Fields.Select(field => field.GetFieldDefinition(false, agent)).ToArray();
             
-            var lines = schema.Fields.Select(field => field.GetFieldDefinition(false)).ToList();
-
-            lines.AddRange(from field in schema.Fields
-                           where field.IndexType == DbIndexType.ForeignKey
-                           select field.GetForeignKeyDefinition());
-
             var result = new List<string>()
                 {
                     string.Format("CREATE TABLE {0}({1});",
-                        schema.Name.Trim().ToLower(), string.Join(", ", lines.ToArray()))
+                        schema.Name.ToConventional(agent), string.Join(", ", lines))
                 };
 
             foreach (var field in schema.Fields)
             {
                 if (field.IndexType == DbIndexType.Simple || field.IndexType == DbIndexType.Unique)
-                    result.AddRange(field.GetAddIndexStatements(schema.Name));
+                    result.AddRange(field.GetAddIndexStatements(schema.Name, agent));
             }
 
             return result;
@@ -477,13 +528,13 @@ namespace Apskaita5.DAL.Sqlite
         /// Gets a list of statements required to drop the database table.
         /// </summary>
         /// <param name="schema">the table schema to drop</param>
-        internal static List<string> GetDropTableStatements(this DbTableSchema schema)
+        internal static List<string> GetDropTableStatements(this DbTableSchema schema, SqlAgentBase agent)
         {
 
-            if (schema == null) throw new ArgumentNullException("schema");
-            
-            return new List<string>() { string.Format("DROP TABLE {0};", 
-                schema.Name.Trim().ToLower()) };
+            if (schema.IsNull()) throw new ArgumentNullException(nameof(schema));
+            if (agent.IsNull()) throw new ArgumentNullException(nameof(agent));
+
+            return new List<string>() { string.Format("DROP TABLE {0};", schema.Name.ToConventional(agent)) };
 
         }
 

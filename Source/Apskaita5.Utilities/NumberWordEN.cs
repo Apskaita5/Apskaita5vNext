@@ -10,7 +10,7 @@ namespace Apskaita5.Common
     class NumberWordEN : NumberWordBase
     {
 
-        private static string[] _ones =
+        private static readonly string[] _ones =
         {
             "zero",
             "one",
@@ -24,7 +24,7 @@ namespace Apskaita5.Common
             "nine"
         };
 
-        private static string[] _teens =
+        private static readonly string[] _teens =
         {
             "ten",
             "eleven",
@@ -38,7 +38,7 @@ namespace Apskaita5.Common
             "nineteen"
         };
 
-        private static string[] _tens =
+        private static readonly string[] _tens =
         {
             "",
             "ten",
@@ -53,7 +53,7 @@ namespace Apskaita5.Common
         };
 
         // US Nnumbering:
-        private static string[] _thousands =
+        private static readonly string[] _thousands =
         {
             "",
             "thousand",
@@ -131,7 +131,7 @@ namespace Apskaita5.Common
             bool allZeros = true;
 
             // Use StringBuilder to build result
-            StringBuilder builder = new StringBuilder();
+            var builder = new StringBuilder();
             // Convert integer portion of value to string
             digits = ((long)value).ToString();
             // Traverse characters in reverse order

@@ -161,9 +161,8 @@ namespace Apskaita5.DAL.Common
         {
             if (this.IsReadOnly)
                 throw new InvalidOperationException(Properties.Resources.LightDataColumnCollection_CannotAddColumnToReadOnlyCollection);
-            if (column == null)
-                throw new ArgumentNullException(nameof(column));
-            if (column.Table != null)
+            if (column.IsNull()) throw new ArgumentNullException(nameof(column));
+            if (!column.Table.IsNull())
                 throw new ArgumentException(Properties.Resources.LightDataColumnCollection_ColumnAlreadyAdded);
             if (this.Contains(column.ColumnName))
                 throw new ArgumentException(Properties.Resources.LightDataColumnCollection_ColumnNameAlreadyExists);
@@ -238,7 +237,7 @@ namespace Apskaita5.DAL.Common
         public LightDataColumn Add(string columnName)
         {
 
-            if (columnName == null || string.IsNullOrEmpty(columnName.Trim()))
+            if (columnName.IsNullOrWhiteSpace())
                 throw new ArgumentNullException(nameof(columnName));
             if (this.Contains(columnName))
                 throw new ArgumentException(Properties.Resources.LightDataColumnCollection_ColumnNameAlreadyExists);
@@ -258,15 +257,11 @@ namespace Apskaita5.DAL.Common
         /// <returns>The newly created LightDataColumn.</returns>
         ///  <exception cref="ArgumentNullException">The dataType parameter is null.</exception> 
         public LightDataColumn Add(Type dataType)
-        {
-
+        {     
             var result = new LightDataColumn(GetDefaultColumnName(), dataType)
             { Table = _dataTable };
-
-            this.Add(result);
-
-            return result;
-
+            this.Add(result);      
+            return result;         
         }
 
         /// <summary>
@@ -275,13 +270,9 @@ namespace Apskaita5.DAL.Common
         /// <returns>The newly created LightDataColumn.</returns>
         public LightDataColumn Add()
         {
-
             var result = new LightDataColumn(GetDefaultColumnName()) { Table = _dataTable };
-
-            this.Add(result);
-
+            this.Add(result);                                                               
             return result;
-
         }
 
         /// <summary>
@@ -300,7 +291,7 @@ namespace Apskaita5.DAL.Common
 
             if (this.IsReadOnly)
                 throw new InvalidOperationException(Properties.Resources.LightDataColumnCollection_CannotAddColumnToReadOnlyCollection);
-            if (columns == null)
+            if (null == columns)
                 throw new ArgumentNullException(nameof(columns));
 
             // because all or no columns should be added
@@ -327,7 +318,7 @@ namespace Apskaita5.DAL.Common
         /// <remarks>should invoke reader.Read() once before passing the reader to this method</remarks>
         internal void Add(IDataReader reader)
         {
-            if (reader == null) throw new ArgumentNullException(nameof(reader));
+            if (reader.IsNull()) throw new ArgumentNullException(nameof(reader));
 
             if (reader.FieldCount < 1) return;
 
@@ -346,13 +337,10 @@ namespace Apskaita5.DAL.Common
         ///  <exception cref="InvalidOperationException">Columns cannot be removed from a readonly collection. 
         /// (The collection is readonly when any row is added to the parent table.)</exception>
         public void Clear()
-        {
-
+        {  
             if (this.IsReadOnly)
                 throw new InvalidOperationException(Properties.Resources.LightDataColumnCollection_CannotRemoveColumnFromReadOnlyCollection);
-
             _list.Clear();
-
         }
 
         /// <summary>
@@ -362,9 +350,7 @@ namespace Apskaita5.DAL.Common
         /// <exception cref="ArgumentNullException">A parameter column is null.</exception>
         public bool Contains(LightDataColumn column)
         {
-            if (column == null)
-                throw new ArgumentNullException(nameof(column));
-
+            if (column.IsNull()) throw new ArgumentNullException(nameof(column)); 
             return _list.Any(col => Object.ReferenceEquals(column, col));
         }
 
@@ -375,10 +361,9 @@ namespace Apskaita5.DAL.Common
         /// <exception cref="ArgumentNullException">A parameter name is null.</exception>
         public bool Contains(string name)
         {
-            if (name == null)
+            if (name.IsNullOrWhiteSpace())
                 throw new ArgumentNullException(nameof(name));
-
-            return _list.Any(col => col.ColumnName.Trim().ToUpperInvariant() == name.Trim().ToUpperInvariant());
+            return _list.Any(col => col.ColumnName.Trim().Equals(name.Trim(), StringComparison.OrdinalIgnoreCase));
         }
 
         /// <summary>
@@ -393,8 +378,7 @@ namespace Apskaita5.DAL.Common
         public bool Remove(LightDataColumn column)
         {
 
-            if (column == null)
-                throw new ArgumentNullException(nameof(column));
+            if (column.IsNull()) throw new ArgumentNullException(nameof(column));
             if (this.IsReadOnly)
                 throw new InvalidOperationException(Properties.Resources.LightDataColumnCollection_CannotRemoveColumnFromReadOnlyCollection);
 
@@ -413,21 +397,10 @@ namespace Apskaita5.DAL.Common
         /// <exception cref="ArgumentNullException">A parameter name is not specified.</exception>
         /// <exception cref="ArgumentException">The collection does not have a column with the specified name.</exception>
         public bool Remove(string name)
-        {
-
-            if (name == null || string.IsNullOrEmpty(name.Trim()))
-                throw new ArgumentNullException(nameof(name));
-
-            foreach (var col in _list)
-            {
-                if (col.ColumnName.Trim().ToLower() == name.Trim().ToLower())
-                {
-                    return this.Remove(col);
-                }
-            }
-
-            throw new ArgumentException(Properties.Resources.LightDataColumnCollection_NoColumnByName);
-
+        {   
+            var index = IndexOf(name);
+            if (index < 0) throw new ArgumentException(Properties.Resources.LightDataColumnCollection_NoColumnByName);
+            return this.Remove(_list[index]);
         }
 
         /// <summary>
@@ -461,12 +434,8 @@ namespace Apskaita5.DAL.Common
         /// <exception cref="ArgumentNullException">A parameter column is not specified.</exception>
         public int IndexOf(LightDataColumn column)
         {
-
-            if (column == null)
-                throw new ArgumentNullException(nameof(column));
-
-            return _list.IndexOf(column);
-
+            if (column.IsNull()) throw new ArgumentNullException(nameof(column)); 
+            return _list.IndexOf(column);     
         }
 
         /// <summary>
@@ -483,7 +452,7 @@ namespace Apskaita5.DAL.Common
 
             foreach (var column in _list)
             {
-                if (column.ColumnName.Trim().ToLower() == name.Trim().ToLower())
+                if (column.ColumnName.Trim().Equals(name.Trim(), StringComparison.OrdinalIgnoreCase))
                     return _list.IndexOf(column);
             }
 
@@ -502,6 +471,16 @@ namespace Apskaita5.DAL.Common
                 if (!this.Contains(curName)) return curName;
                 curIndex += 1;
             }
+        }
+
+        internal List<LightDataColumnProxy> ToProxyList()
+        {
+            var result = new List<LightDataColumnProxy>();
+            foreach (var column in _list)
+            {
+                result.Add(column.GetLightDataColumnProxy());
+            }
+            return result;
         }
 
     }

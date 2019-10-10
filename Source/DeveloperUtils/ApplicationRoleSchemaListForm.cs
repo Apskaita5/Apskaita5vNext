@@ -18,11 +18,6 @@ namespace DeveloperUtils
             get { return true; }
         }
 
-        public bool CanOpen
-        {
-            get { return true; }
-        }
-
         public bool CanCreate
         {
             get { return true; }
@@ -31,16 +26,6 @@ namespace DeveloperUtils
         public bool CanPaste
         {
             get { return true; }
-        }
-
-        public string DefaultExtension
-        {
-            get { return "xml"; }
-        }
-
-        public string DefaultExtensionDescription
-        {
-            get { return "XML Files"; }
         }
 
         public string CurrentFilePath
@@ -54,11 +39,27 @@ namespace DeveloperUtils
             InitializeComponent();
         }
 
+        public ApplicationRoleSchemaListForm(ApplicationRoleSchemaList objectToEdit, string filePath)
+        {
+            InitializeComponent();
+            _currentSource = objectToEdit;
+            _currentFilePath = filePath;            
+        }
+
 
         private void ApplicationRoleSchemaListForm_Load(object sender, EventArgs e)
         {
+
+            if (_currentSource == null)
+            {
+                _currentSource = new ApplicationRoleSchemaList();
+                this.Text = "New Role Schema";
+            }
+            else
+            {
+                this.Text = "Role Schema: " + _currentFilePath;
+            }
             
-            _currentSource = new ApplicationRoleSchemaList();
             this.applicationRoleSchemaListBindingSource.DataSource = _currentSource;
 
             ((SimpleDropSink) this.EditableDataListView.DropSink).AcceptExternal = false;
@@ -66,9 +67,7 @@ namespace DeveloperUtils
             ((SimpleDropSink)this.EditableDataListView.DropSink).CanDropOnItem = false;
             ((SimpleDropSink)this.EditableDataListView.DropSink).CanDropOnSubItem = false;
             ((SimpleDropSink)this.EditableDataListView.DropSink).EnableFeedback = true;
-            ((SimpleDropSink)this.EditableDataListView.DropSink).CanDropBetween = true;
-
-            this.Text = "New Role Schema";
+            ((SimpleDropSink)this.EditableDataListView.DropSink).CanDropBetween = true;            
 
         }
 
@@ -162,32 +161,6 @@ namespace DeveloperUtils
                 MessageBox.Show(ex.Message, "", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
-
-            _currentFilePath = filePath;
-
-            this.Text = "Role Schema: " + _currentFilePath;
-
-        }
-
-        public void Open(string filePath)
-        {
-
-            if (filePath.IsNullOrWhiteSpace()) return;
-
-            if (!SaveCurrentSource()) return;
-
-            var result = new ApplicationRoleSchemaList();
-            try
-            {
-                result.LoadXmlFile(filePath);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(ex.Message, "", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
-                return;
-            }
-
-            RebindDataSource(result);
 
             _currentFilePath = filePath;
 

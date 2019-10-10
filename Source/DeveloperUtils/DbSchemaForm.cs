@@ -3,10 +3,12 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Windows.Forms;
-using Apskaita5.DAL.Common;
+using Apskaita5.DAL.Common.DbSchema;
 using Apskaita5.Common;
 using Apskaita5.DAL.MySql;
-using Apskaita5.DAL.Sqlite;
+using Apskaita5.DAL.SQLite;
+using DeveloperUtils.TestClasses;
+using Apskaita5.DAL.Common;
 
 namespace DeveloperUtils
 {
@@ -16,14 +18,10 @@ namespace DeveloperUtils
         private DbSchema _currentSource = null;
         private string _currentFilePath = string.Empty;
         private readonly string _dbName = "";
+        private string _clipboardForFields = "";
 
 
         public bool CanSave
-        {
-            get { return true; }
-        }
-
-        public bool CanOpen
         {
             get { return true; }
         }
@@ -36,16 +34,6 @@ namespace DeveloperUtils
         public bool CanPaste
         {
             get { return true; }
-        }
-
-        public string DefaultExtension
-        {
-            get { return "xml"; }
-        }
-
-        public string DefaultExtensionDescription
-        {
-            get { return "XML Files"; }
         }
 
         public string CurrentFilePath
@@ -66,12 +54,22 @@ namespace DeveloperUtils
             _dbName = dbName;
         }
 
+        public DbSchemaForm(string filePath, DbSchema schema)
+        {
+            InitializeComponent();
+            _currentSource = schema;
+            _currentFilePath = filePath;
+        }
+
 
         private void DbSchemaForm_Load(object sender, EventArgs e)
         {
 
             var sqlTypes = Enum.GetValues(typeof (DbDataType)).Cast<DbDataType>().ToList();
             this.dataGridViewTextBoxColumn6.DataSource = sqlTypes;
+
+            var collationTypes = Enum.GetValues(typeof(DbFieldCollationType)).Cast<DbFieldCollationType>().ToList();
+            this.dataGridViewTextBoxColumn16.DataSource = collationTypes;
 
             var indexTypes = Enum.GetValues(typeof(DbIndexType)).Cast<DbIndexType>().ToList();
             this.dataGridViewTextBoxColumn10.DataSource = indexTypes;
@@ -81,8 +79,8 @@ namespace DeveloperUtils
             this.dataGridViewTextBoxColumn12.DataSource = changeActionTypes;
             this.dataGridViewTextBoxColumn13.DataSource = changeActionTypes;
 
-            var agent2 = new SqliteAgent("fake conn string", "", false);
-            var agent1 = new MySqlAgent("fake conn string", "", false);
+            var agent2 = new SqliteAgent("fake conn string", "fake path", null, null);
+            var agent1 = new MySqlAgent("fake conn string", string.Empty, null, null);
             var agents = new List<SqlAgentBase>() {agent1, agent2};
 
             this.sqlAgentsComboBox.DisplayMember = "Name";
@@ -93,12 +91,27 @@ namespace DeveloperUtils
                 _currentSource = new DbSchema();
                 this.Text = "New Database Schema";
             }
+            else if (!_currentFilePath.IsNullOrWhiteSpace())
+            {
+                this.Text = "Database Schema: " + _currentFilePath;
+            }
             else
             {
                 this.Text = "Database Schema For " + _dbName;
             }
 
             this.dbSchemaBindingSource.DataSource = _currentSource;
+
+            ContextMenuStrip mnu = new ContextMenuStrip();
+            ToolStripMenuItem mnuCopy = new ToolStripMenuItem("Copy");
+            ToolStripMenuItem mnuPaste = new ToolStripMenuItem("Paste");
+            //Assign event handlers
+            mnuCopy.Click += new EventHandler(mnuCopy_Click);
+            mnuPaste.Click += new EventHandler(mnuPaste_Click);
+            //Add to main context menu
+            mnu.Items.AddRange(new ToolStripItem[] { mnuCopy, mnuPaste });
+            //Assign to datagridview
+            this.fieldsDataGridView.ContextMenuStrip = mnu;
 
         }
 
@@ -134,6 +147,11 @@ namespace DeveloperUtils
                 this.tablesDataGridView.FirstDisplayedScrollingRowIndex =
                     this.tablesDataGridView.RowCount - 1;
             }
+
+            if (e.KeyData == Keys.F2)
+            {
+                Clipboard.SetText(((DbTableSchema)this.tablesBindingSource.Current).ToClass());
+            }
             
         }
 
@@ -164,7 +182,21 @@ namespace DeveloperUtils
 
             if (e.KeyData == Keys.Insert || e.KeyData == Keys.Add)
             {
-                table.Fields.Add(new DbFieldSchema());
+                if (this.fieldsDataGridView.CurrentCell != null && this.fieldsDataGridView.CurrentCell.RowIndex 
+                    < this.fieldsDataGridView.Rows.Count - 1)
+                {
+                    table.Fields.Insert(this.fieldsDataGridView.CurrentCell.RowIndex, new DbFieldSchema());
+                }
+                else if (this.fieldsDataGridView.CurrentRow != null && this.fieldsDataGridView.CurrentRow.Index
+                    < this.fieldsDataGridView.Rows.Count - 1)
+                {
+                    table.Fields.Insert(this.fieldsDataGridView.CurrentRow.Index, new DbFieldSchema());
+                }
+                else
+                {
+                    table.Fields.Add(new DbFieldSchema());
+                }
+
 
                 this.fieldsBindingSource.ResetBindings(false);
 
@@ -186,6 +218,18 @@ namespace DeveloperUtils
 
             var item = fieldsDataGridView.Rows[e.RowIndex].DataBoundItem as DbFieldSchema;
             if (item == null) return;
+
+            if (fieldsDataGridView.Columns[e.ColumnIndex].DataPropertyName == nameof(DbFieldSchema.IndexType))
+            {
+                if (item.IndexType == DbIndexType.ForeignKey || item.IndexType == DbIndexType.ForeignPrimary)
+                {
+                    item.IndexName = string.Format("{0}_{1}_fk", ((DbTableSchema)tablesBindingSource.Current).Name.ToLower().Trim(), item.Name.ToLower().Trim());
+                }
+                if (item.IndexType == DbIndexType.Simple || item.IndexType == DbIndexType.Unique)
+                {
+                    item.IndexName = string.Format("{0}_{1}_idx", ((DbTableSchema)tablesBindingSource.Current).Name.ToLower().Trim(), item.Name.ToLower().Trim());
+                }
+            }
 
             var errors = item.GetDataErrors();
 
@@ -217,7 +261,7 @@ namespace DeveloperUtils
 
             try
             {
-                Clipboard.SetText(sqlAgent.GetCreateDatabaseSql(_currentSource), TextDataFormat.UnicodeText);
+                Clipboard.SetText(sqlAgent.GetDefaultSchemaManager().GetCreateDatabaseSql(_currentSource), TextDataFormat.UnicodeText);
             }
             catch (Exception ex)
             {
@@ -317,6 +361,49 @@ namespace DeveloperUtils
 
             this.fieldsDataGridView.FirstDisplayedScrollingRowIndex =
                 this.fieldsDataGridView.RowCount - 1;
+
+        }
+
+        private void mnuCopy_Click(object sender, EventArgs e)
+        {
+            if (this.fieldsDataGridView.SelectedRows == null) return;
+
+            var itemsToCopy = new List<DbFieldSchema>();
+
+            foreach (DataGridViewRow row in this.fieldsDataGridView.SelectedRows)
+            {
+                itemsToCopy.Add((DbFieldSchema)row.DataBoundItem);
+            }
+
+            if (itemsToCopy.Count > 0) _clipboardForFields = Apskaita5.Common.Utilities.WriteToXml(itemsToCopy, null);
+        }
+
+        private void mnuPaste_Click(object sender, EventArgs e)
+        {
+
+            if (_clipboardForFields.IsNullOrWhiteSpace() || tablesBindingSource.Current == null) return;
+
+            var itemsToCopy = Apskaita5.Common.Utilities.CreateFromXml<List<DbFieldSchema>>(_clipboardForFields);
+            itemsToCopy.Reverse();
+            
+            if (this.fieldsDataGridView.CurrentCell != null && this.fieldsDataGridView.CurrentCell.RowIndex
+                    < this.fieldsDataGridView.Rows.Count - 1)
+            {
+                ((DbTableSchema)tablesBindingSource.Current).Fields.InsertRange(
+                    this.fieldsDataGridView.CurrentCell.RowIndex, itemsToCopy);
+            }
+            else if (this.fieldsDataGridView.CurrentRow != null && this.fieldsDataGridView.CurrentRow.Index
+                < this.fieldsDataGridView.Rows.Count - 1)
+            {
+                ((DbTableSchema)tablesBindingSource.Current).Fields.InsertRange(
+                    this.fieldsDataGridView.CurrentRow.Index, itemsToCopy);
+            }
+            else
+            {
+                ((DbTableSchema)tablesBindingSource.Current).Fields.AddRange(itemsToCopy);
+            }
+
+            fieldsBindingSource.ResetBindings(false);
 
         }
 

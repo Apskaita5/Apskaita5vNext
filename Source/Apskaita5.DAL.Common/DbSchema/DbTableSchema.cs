@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 
-namespace Apskaita5.DAL.Common
+namespace Apskaita5.DAL.Common.DbSchema
 {
     /// <summary>
     /// Represents a canonical database table specification.
@@ -17,6 +17,7 @@ namespace Apskaita5.DAL.Common
         private string _description = string.Empty;
         private string _charsetName = string.Empty;
         private string _engineName = string.Empty;
+        private Guid? _extensionGuid = null;
         private List<DbFieldSchema> _fields = new List<DbFieldSchema>();
 
 
@@ -26,7 +27,7 @@ namespace Apskaita5.DAL.Common
         public string Name
         {
             get { return _name; }
-            set { _name = value.NotNullValue().Trim(); }
+            set { _name = value?.Trim() ?? string.Empty; }
         }
 
         /// <summary>
@@ -35,7 +36,7 @@ namespace Apskaita5.DAL.Common
         public string Description
         {
             get { return _description; }
-            set { _description = value.NotNullValue().Trim(); }
+            set { _description = value?.Trim() ?? string.Empty; }
         }
 
         /// <summary>
@@ -55,7 +56,7 @@ namespace Apskaita5.DAL.Common
         public string CharsetName
         {
             get { return _charsetName; }
-            set { _charsetName = value.NotNullValue().Trim(); }
+            set { _charsetName = value?.Trim() ?? string.Empty; }
         }
 
         /// <summary>
@@ -65,7 +66,17 @@ namespace Apskaita5.DAL.Common
         public string EngineName
         {
             get { return _engineName; }
-            set { _engineName = value.NotNullValue().Trim(); }
+            set { _engineName = value?.Trim() ?? string.Empty; }
+        }
+
+        /// <summary>
+        /// Gets or sets a Guid of an extension that the table belongs to. Null for base schema.
+        /// </summary>
+        [System.Xml.Serialization.XmlIgnore]
+        public Guid? ExtensionGuid
+        {
+            get => _extensionGuid;
+            internal set => _extensionGuid = value;
         }
 
 
@@ -92,7 +103,7 @@ namespace Apskaita5.DAL.Common
             if (_name.IndexOf(" ", StringComparison.OrdinalIgnoreCase) >= 0)
                 GetOrCreateErrorList(nameof(Name), result).Add(Properties.Resources.DbTableSchema_TableNameContainsEmptySpaces);
 
-            if (_fields == null || _fields.Count < 1)
+            if (_fields.IsNull() || _fields.Count < 1)
                 GetOrCreateErrorList(nameof(Fields), result).Add(Properties.Resources.DbTableSchema_FieldListEmpty);
 
             return result;
@@ -159,15 +170,15 @@ namespace Apskaita5.DAL.Common
 
             if (delimitedString.IsNullOrWhiteSpace())
                 throw new ArgumentNullException(nameof(delimitedString));
-            if (lineDelimiter == null || lineDelimiter.Length < 1)
+            if (null == lineDelimiter || lineDelimiter.Length < 1)
                 throw new ArgumentNullException(nameof(lineDelimiter));
-            if (fieldDelimiter == null || fieldDelimiter.Length < 1)
+            if (null == fieldDelimiter || fieldDelimiter.Length < 1)
                 throw new ArgumentNullException(nameof(fieldDelimiter));
 
             if (!delimitedString.Contains(fieldDelimiter))
                 throw new ArgumentException(Properties.Resources.NoFieldsInString, nameof(delimitedString));
 
-            if (_fields == null) _fields = new List<DbFieldSchema>();
+            if (_fields.IsNull()) _fields = new List<DbFieldSchema>();
 
             foreach (var line in delimitedString.Split(new string[] { lineDelimiter },
                 StringSplitOptions.RemoveEmptyEntries))
@@ -176,6 +187,16 @@ namespace Apskaita5.DAL.Common
                     _fields.Add(new DbFieldSchema(line, fieldDelimiter));
             }
 
+        }
+
+        /// <summary>
+        /// Sets index names so that they are unique per database.
+        /// Name format for foreign keys is table_field_fk.
+        /// Name format for other indexes is table_field_idx.
+        /// </summary>
+        public void SetSafeIndexNames()
+        {
+            foreach (var item in _fields) item.SetSafeIndexName(_name);
         }
 
 
@@ -195,7 +216,7 @@ namespace Apskaita5.DAL.Common
 
             foreach (var col in _fields)
             {
-                if (col.IndexType == DbIndexType.ForeignKey)
+                if (col.IndexType == DbIndexType.ForeignKey || col.IndexType == DbIndexType.ForeignPrimary)
                 {
                     foreach (var tbl in fullList)
                     {

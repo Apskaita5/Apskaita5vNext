@@ -60,6 +60,7 @@
             this.dataGridViewTextBoxColumn13 = new System.Windows.Forms.DataGridViewComboBoxColumn();
             this.dataGridViewTextBoxColumn14 = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.dataGridViewTextBoxColumn15 = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.dataGridViewTextBoxColumn16 = new System.Windows.Forms.DataGridViewComboBoxColumn();
             this.fieldsBindingSource = new System.Windows.Forms.BindingSource(this.components);
             descriptionLabel = new System.Windows.Forms.Label();
             charsetNameLabel = new System.Windows.Forms.Label();
@@ -150,7 +151,7 @@
             // 
             // dbSchemaBindingSource
             // 
-            this.dbSchemaBindingSource.DataSource = typeof(Apskaita5.DAL.Common.DbSchema);
+            this.dbSchemaBindingSource.DataSource = typeof(Apskaita5.DAL.Common.DbSchema.DbSchema);
             // 
             // charsetNameTextBox
             // 
@@ -249,6 +250,7 @@
             this.dataGridViewCheckBoxColumn1,
             this.dataGridViewCheckBoxColumn3,
             this.dataGridViewCheckBoxColumn2,
+            this.dataGridViewTextBoxColumn16,
             this.dataGridViewTextBoxColumn10,
             this.dataGridViewTextBoxColumn11,
             this.dataGridViewTextBoxColumn12,
@@ -358,6 +360,12 @@
             this.dataGridViewTextBoxColumn15.HeaderText = "Ref Field";
             this.dataGridViewTextBoxColumn15.Name = "dataGridViewTextBoxColumn15";
             // 
+            // dataGridViewTextBoxColumn16
+            // 
+            this.dataGridViewTextBoxColumn16.DataPropertyName = "CollationType";
+            this.dataGridViewTextBoxColumn16.HeaderText = "Collation";
+            this.dataGridViewTextBoxColumn16.Name = "dataGridViewTextBoxColumn16";
+            // 
             // fieldsBindingSource
             // 
             this.fieldsBindingSource.DataMember = "Fields";
@@ -418,6 +426,7 @@
         private System.Windows.Forms.DataGridViewComboBoxColumn dataGridViewTextBoxColumn13;
         private System.Windows.Forms.DataGridViewTextBoxColumn dataGridViewTextBoxColumn14;
         private System.Windows.Forms.DataGridViewTextBoxColumn dataGridViewTextBoxColumn15;
+        private System.Windows.Forms.DataGridViewComboBoxColumn dataGridViewTextBoxColumn16;
         private System.Windows.Forms.ComboBox sqlAgentsComboBox;
 
     }

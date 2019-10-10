@@ -4,7 +4,7 @@ using System.Windows.Forms;
 using Apskaita5.DAL.Common;
 using Apskaita5.Common;
 using Apskaita5.DAL.MySql;
-using Apskaita5.DAL.Sqlite;
+using Apskaita5.DAL.SQLite;
 
 namespace DeveloperUtils
 {
@@ -30,8 +30,8 @@ namespace DeveloperUtils
 
             var agents = new List<SqlAgentBase>()
                 {
-                    new MySqlAgent("fake conn string", "", false),
-                    new SqliteAgent("fake conn string", "", false)
+                    new MySqlAgent("fake conn string", string.Empty, null, null),
+                    new SqliteAgent("fake conn string", "fake path", null, null)
                 };
 
             this.sqlAgentsComboBox.DisplayMember = "Name";
@@ -74,7 +74,7 @@ namespace DeveloperUtils
             }
         }
 
-        private void loginButton_Click(object sender, EventArgs e)
+        private async void loginButton_Click(object sender, EventArgs e)
         {
 
             var agent = this.sqlAgentsComboBox.SelectedValue as SqlAgentBase;
@@ -91,11 +91,12 @@ namespace DeveloperUtils
 
             try
             {
+                ISqlDictionary dictionary = null;
+                if (this.useSqlRepositoryCheckBox.Checked)
+                    dictionary = new SqlDictionary(this.sqlRepositoryFolderTextBox.Text, true);
                 _agent = (SqlAgentBase)Activator.CreateInstance(agent.GetType(), 
-                    this.connectionStringTextBox.Text, this.sqlRepositoryFolderTextBox.Text,
-                    this.useSqlRepositoryCheckBox.Checked);
-                _agent.CurrentDatabase = this.databaseTextBox.Text;
-                _agent.TestConnectionAsync().Wait();
+                    this.connectionStringTextBox.Text, this.databaseTextBox.Text, dictionary, null);
+                await _agent.TestConnectionAsync();
             }
             catch (Exception ex)
             {
@@ -115,35 +116,7 @@ namespace DeveloperUtils
             this.Close();
         }
 
-        private void databaseTextBox_TextChanged(object sender, EventArgs e)
-        {
-
-        }
-
-        private void connectionStringTextBox_TextChanged(object sender, EventArgs e)
-        {
-
-        }
-
-        private void label3_Click(object sender, EventArgs e)
-        {
-
-        }
-
-        private void label2_Click(object sender, EventArgs e)
-        {
-
-        }
-
-        private void label1_Click(object sender, EventArgs e)
-        {
-
-        }
-
-        private void sqlAgentsComboBox_SelectedIndexChanged(object sender, EventArgs e)
-        {
-
-        }
+        
 
     }
 }

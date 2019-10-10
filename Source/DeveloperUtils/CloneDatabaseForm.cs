@@ -4,7 +4,8 @@ using System.Windows.Forms;
 using Apskaita5.DAL.Common;
 using Apskaita5.Common;
 using Apskaita5.DAL.MySql;
-using Apskaita5.DAL.Sqlite;
+using Apskaita5.DAL.SQLite;
+using Apskaita5.DAL.Common.DbSchema;
 
 namespace DeveloperUtils
 {
@@ -62,14 +63,14 @@ namespace DeveloperUtils
         {
             var sourceAgents = new List<SqlAgentBase>()
                 {
-                    new MySqlAgent("fake conn string", "", false),
-                    new SqliteAgent("fake conn string", "", false)
+                    new MySqlAgent("fake conn string", string.Empty, null, null),
+                    new SqliteAgent("fake conn string", "fake path", null, null)
                 };
 
             var targetAgents = new List<SqlAgentBase>()
                 {
-                    new MySqlAgent("fake conn string", "", false),
-                    new SqliteAgent("fake conn string", "", false)
+                    new MySqlAgent("fake conn string", string.Empty, null, null),
+                    new SqliteAgent("fake conn string", "fake path", null, null)
                 };
 
             this.targetSqlAgentsComboBox.DisplayMember = "Name";
@@ -128,11 +129,9 @@ namespace DeveloperUtils
             try
             {
                 sourceAgent = (SqlAgentBase) Activator.CreateInstance(sourceAgentType.GetType(), 
-                    this.sourceConnectionStringTextBox.Text, "", false);
-                sourceAgent.CurrentDatabase = this.sourceDatabaseTextBox.Text;
+                    this.sourceConnectionStringTextBox.Text, this.sourceDatabaseTextBox.Text, null, null);
                 targetAgent = (SqlAgentBase)Activator.CreateInstance(targetAgentType.GetType(),
-                    this.targetConnectionStringTextBox.Text, "", false);
-                targetAgent.CurrentDatabase = this.targetDatabaseTextBox.Text;
+                    this.targetConnectionStringTextBox.Text, this.targetDatabaseTextBox.Text, null, null);
             }
             catch (Exception ex)
             {
@@ -181,14 +180,5 @@ namespace DeveloperUtils
 
         }
 
-        private void targetDatabaseTextBox_TextChanged(object sender, EventArgs e)
-        {
-
-        }
-
-        private void label4_Click(object sender, EventArgs e)
-        {
-
-        }
     }
 }

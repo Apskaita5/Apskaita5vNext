@@ -81,7 +81,7 @@ namespace Apskaita5.DAL.Common
 
             if (name.IsNullOrWhiteSpace())
                 throw new ArgumentNullException(nameof(name));
-            if (valueType == null)
+            if (null == valueType)
                 throw new ArgumentNullException(nameof(valueType));
 
             _name = name;
@@ -171,6 +171,18 @@ namespace Apskaita5.DAL.Common
                     if (c.HasValue) _value = c.Value;
                     else _value = null;
                 }
+                else if (value.GetType() == typeof(Nullable<Guid>))
+                {
+                    var c = (Nullable<Guid>)value;
+                    _valueType = typeof(Guid);
+                    if (c.HasValue) _value = c.Value;
+                    else _value = null;
+                }
+                else if (typeof(ILookupObject).IsAssignableFrom(value.GetType()))
+                {
+                    if (((ILookupObject)value).IsEmpty) value = null;
+                    else value = ((ILookupObject)value).GetId();
+                }
                 else
                 {
                     _value = value;
@@ -189,6 +201,31 @@ namespace Apskaita5.DAL.Common
                 _valueType = typeof(string);
             }
 
+        }
+
+
+        /// <summary>
+        /// Gets a parameter value for a specific SqlAgent.
+        /// </summary>
+        /// <param name="sqlAgent">an SqlAgent that requests value and holds formating preferences</param>
+        public object GetValue(ISqlAgent sqlAgent)
+        {
+            if (_value != null && sqlAgent.BooleanStoredAsTinyInt && _value.GetType() == typeof(bool))
+            {
+                if ((bool)_value) return 1;
+                else return 0;
+            }
+            if (_value != null && _value.GetType() == typeof(Guid))
+            {
+                if (sqlAgent.GuidStoredAsBlob) return ((Guid)_value).ToByteArray();
+                else return ((Guid)_value).ToString("N");
+            }
+            return _value;
+        }
+
+        public override string ToString()
+        {
+            return string.Format("{0}={1}", _name, _value?.ToString() ?? "null");
         }
 
     }

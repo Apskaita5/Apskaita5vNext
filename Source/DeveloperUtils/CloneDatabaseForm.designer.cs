@@ -176,7 +176,6 @@
             this.targetDatabaseTextBox.Name = "targetDatabaseTextBox";
             this.targetDatabaseTextBox.Size = new System.Drawing.Size(448, 20);
             this.targetDatabaseTextBox.TabIndex = 2;
-            this.targetDatabaseTextBox.TextChanged += new System.EventHandler(this.targetDatabaseTextBox_TextChanged);
             // 
             // targetConnectionStringTextBox
             // 
@@ -195,7 +194,6 @@
             this.label4.Size = new System.Drawing.Size(56, 13);
             this.label4.TabIndex = 10;
             this.label4.Text = "Database:";
-            this.label4.Click += new System.EventHandler(this.label4_Click);
             // 
             // label5
             // 

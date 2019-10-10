@@ -5,7 +5,7 @@ using System.Linq;
 using System.Security;
 using System.Text;
 
-namespace Apskaita5.DAL.Common
+namespace Apskaita5.DAL.Common.DbSchema
 {
     /// <summary>
     /// Represents a canonical database specification.
@@ -16,6 +16,7 @@ namespace Apskaita5.DAL.Common
 
         private string _description = string.Empty;
         private string _charsetName = string.Empty;
+        private string _extensionGuid = string.Empty;
         private List<DbTableSchema> _tables = new List<DbTableSchema>();
 
 
@@ -27,7 +28,7 @@ namespace Apskaita5.DAL.Common
             get { return _description; }
             set
             {
-                _description = value.NotNullValue().Trim();
+                _description = value?.Trim() ?? string.Empty;
             }
         }
 
@@ -50,8 +51,17 @@ namespace Apskaita5.DAL.Common
             get { return _charsetName; }
             set
             {
-                _charsetName = value.NotNullValue().Trim();
+                _charsetName = value?.Trim() ?? string.Empty;
             }
+        }
+
+        /// <summary>
+        /// Gets or sets the Guid of the extension that the schema belongs to. Empty for base schema.
+        /// </summary>
+        public string ExtensionGuid
+        {
+            get => _extensionGuid;
+            set => _extensionGuid = value?.Trim() ?? string.Empty;
         }
 
 
@@ -61,19 +71,12 @@ namespace Apskaita5.DAL.Common
         /// <param name="xmlSource">an XML string that contains DbSchema data</param>
         /// <exception cref="ArgumentNullException">Source string is empty.</exception>
         public void LoadXml(string xmlSource)
-        {
-
+        {     
             if (xmlSource.IsNullOrWhiteSpace())
                 throw new ArgumentNullException(nameof(xmlSource));
 
             var source = Utilities.DeSerializeFromXml<DbSchema>(xmlSource);
-
-            if (_tables == null) _tables = new List<DbTableSchema>();
-
-            _tables.AddRange(source.Tables);
-            _charsetName = source._charsetName;
-            _description = source._description;
-
+            LoadData(source);
         }
 
         /// <summary>
@@ -124,11 +127,7 @@ namespace Apskaita5.DAL.Common
                 }
             }
 
-            if (_tables == null) _tables = new List<DbTableSchema>();
-
-            _tables.AddRange(repository.Tables);
-            _charsetName = repository._charsetName;
-            _description = repository._description;
+            LoadData(repository);
 
         }
 
@@ -153,7 +152,7 @@ namespace Apskaita5.DAL.Common
         /// <exception cref="FileNotFoundException">The file specified in filePath was not found.</exception>
         /// <exception cref="NotSupportedException">filePath is in an invalid format.</exception>
         /// <exception cref="SecurityException">The caller does not have the required permission.</exception>
-        public void LoadXmlFolder(string xmlFolderPath)
+        public void LoadXmlFolder(string xmlFolderPath, Guid[] forExtensions = null)
         {
 
             if (xmlFolderPath.IsNullOrWhiteSpace())
@@ -175,10 +174,48 @@ namespace Apskaita5.DAL.Common
             if (result.Count < 1)
                 throw new InvalidOperationException(string.Format(Properties.Resources.NoFilesInFolder, xmlFolderPath));
 
+            var schemas = new List<DbSchema>();
+
             foreach (var filePath in result)
             {
-                this.LoadXmlFile(filePath);
+                var schema = new DbSchema();
+                schema.LoadXmlFile(filePath);
+                schemas.Add(schema);
             }
+
+            var baseCount = schemas.Count(s => s.ExtensionGuid.IsNullOrWhiteSpace());
+            if (baseCount < 1) throw new Exception(Properties.Resources.DbSchema_BaseSchemaNotFound);
+            if (baseCount > 1) throw new Exception(Properties.Resources.DbSchema_MultipleBaseSchemas);
+
+            var baseSchema = schemas.First(s => s.ExtensionGuid.IsNullOrWhiteSpace());
+            foreach (var table in baseSchema._tables) table.ExtensionGuid = null;
+
+            var aggregateSchema = new DbSchema();
+            aggregateSchema.LoadData(baseSchema);
+
+            foreach (var schema in schemas.Where(s => !s.ExtensionGuid.IsNullOrWhiteSpace()))
+            {
+
+                var clashingTables = aggregateSchema._tables.Where(o => schema._tables.Any(
+                    n => n.Name.Trim().Equals(o.Name.Trim(), StringComparison.OrdinalIgnoreCase)));
+                if (clashingTables != null && clashingTables.Count() > 0)
+                {
+                    var clashingNames = clashingTables.Select(t => string.Format(Properties.Resources.DbSchema_TableNameClash, 
+                        t.Name, schema._extensionGuid, t.ExtensionGuid.HasValue ? Properties.Resources.DbSchema_Extension 
+                        + " " + t.ExtensionGuid.Value.ToString() : Properties.Resources.DbSchema_BaseSchema));
+                    throw new Exception(string.Join(Environment.NewLine, clashingNames.ToArray()));
+                }
+
+                if (!Guid.TryParse(schema._extensionGuid, out var current_guid))
+                    throw new Exception(string.Format(Properties.Resources.DbSchema_InvalidGuidForSchema, schema._description));
+                foreach (var table in schema._tables) table.ExtensionGuid = current_guid;
+
+                if (null == forExtensions || forExtensions.Length < 1 || forExtensions.Any(g => g == current_guid))
+                    aggregateSchema._tables.AddRange(schema._tables);
+
+            }
+
+            LoadData(aggregateSchema);
 
         }
 
@@ -241,8 +278,10 @@ namespace Apskaita5.DAL.Common
         {
             var result = new Dictionary<string, List<string>>();
 
-            if (_tables == null || _tables.Count < 1)
+            if (_tables.IsNull() || _tables.Count < 1)
                 GetOrCreateErrorList(nameof(Tables), result).Add(Properties.Resources.DbSchema_TableListEmpty);
+            if (!_extensionGuid.IsNullOrWhiteSpace() && !Guid.TryParse(_extensionGuid, out var value))
+                GetOrCreateErrorList(nameof(ExtensionGuid), result).Add(Properties.Resources.DbSchema_GuidInvalid);
 
             return result;
         }
@@ -290,5 +329,43 @@ namespace Apskaita5.DAL.Common
 
         }
 
+        private void LoadData(DbSchema schemaToClone)
+        {
+            if (_tables.IsNull()) _tables = new List<DbTableSchema>();
+            else _tables.Clear();
+
+            _tables.AddRange(schemaToClone._tables);
+            _charsetName = schemaToClone._charsetName?.Trim() ?? string.Empty;
+            _description = schemaToClone._description?.Trim() ?? string.Empty;
+            _extensionGuid = schemaToClone._extensionGuid?.Trim() ?? string.Empty;
+        }
+
+
+        /// <summary>
+        /// Returns true if all index names within the schema are unique. Otherwise - false.
+        /// </summary>
+        public bool AllIndexesUnique()
+        {
+            var indexes = new List<string>();
+            foreach (var table in _tables)
+            {
+                var table_indexes = table.Fields.Where(t => t.IndexType == DbIndexType.Simple 
+                    || t.IndexType == DbIndexType.Unique).Select(f => f.IndexName.Trim().ToUpperInvariant());
+                indexes.AddRange(table_indexes);
+            }
+            var duplicates = indexes.Where(n => indexes.Count(m => m == n) > 1).Distinct();
+            return (null == duplicates || duplicates.Count() < 1);
+        }
+
+        /// <summary>
+        /// Sets index names so that they are unique per database.
+        /// Name format for foreign keys is table_field_fk.
+        /// Name format for other indexes is table_field_idx.
+        /// </summary>
+        public void SetSafeIndexNames()
+        {
+            foreach (var item in _tables) item.SetSafeIndexNames();
+        }
+        
     }
 }

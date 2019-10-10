@@ -4,6 +4,8 @@ using System.Collections.Generic;
 using System.Data;
 using System.Globalization;
 using System.Linq;
+using System.Data.Common;
+using System.Threading.Tasks;
 
 namespace Apskaita5.DAL.Common
 {
@@ -95,7 +97,7 @@ namespace Apskaita5.DAL.Common
         /// <exception cref="ArgumentException">The row was created for different table.</exception>
         public void Add(LightDataRow row)
         {
-            if (row == null)
+            if (row.IsNull())
                 throw new ArgumentNullException(nameof(row));
             if (!Object.ReferenceEquals(_dataTable, row.Table))
                 throw new ArgumentException(Properties.Resources.LightDataRowCollection_RowBelongsToOtherTable);
@@ -144,11 +146,25 @@ namespace Apskaita5.DAL.Common
         /// <remarks>should invoke reader.Read() once before passing the reader to this method</remarks>
         internal void Add(IDataReader reader)
         {
-            if (reader == null) throw new ArgumentNullException(nameof(reader));
+            if (reader.IsNull()) throw new ArgumentNullException(nameof(reader));
             do
             {
                 _list.Add(new LightDataRow(_dataTable, reader));
             } while (reader.Read());
+        }
+
+        /// <summary>
+        /// Adds new rows using the db reader async.
+        /// </summary>
+        /// <param name="reader">db reader to use</param>
+        /// <remarks>should invoke reader.ReadAsync() once before passing the reader to this method</remarks>
+        internal async Task AddAsync(DbDataReader reader)
+        {
+            if (reader.IsNull()) throw new ArgumentNullException(nameof(reader));
+            do
+            {
+                _list.Add(new LightDataRow(_dataTable, reader));
+            } while (await reader.ReadAsync().ConfigureAwait(false));
         }
 
         /// <summary>
@@ -166,7 +182,7 @@ namespace Apskaita5.DAL.Common
         /// <exception cref="ArgumentNullException">A parameter row is null.</exception>
         public bool Contains(LightDataRow row)
         {
-            if (row == null)
+            if (row.IsNull())
                 throw new ArgumentNullException(nameof(row));
             return _list.Any(r => Object.ReferenceEquals(row, r));
         }
@@ -191,7 +207,7 @@ namespace Apskaita5.DAL.Common
         public bool Remove(LightDataRow row)
         {
 
-            if (row == null)
+            if (row.IsNull())
                 throw new ArgumentNullException(nameof(row));
 
             return _list.Remove(row);
@@ -217,6 +233,17 @@ namespace Apskaita5.DAL.Common
 
             this.Remove(_list[index]);
 
+        }
+
+
+        internal List<LightDataRowProxy> ToProxyList()
+        {
+            var result = new List<LightDataRowProxy>();
+            foreach (var row in _list)
+            {
+                result.Add(row.GetLightDataRowProxy());
+            }
+            return result;
         }
 
     }

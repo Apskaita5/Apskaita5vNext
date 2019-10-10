@@ -40,7 +40,7 @@ namespace Apskaita5.DAL.Common
             }
             set
             {
-                _caption = value.NotNullValue();
+                _caption = value?.Trim() ?? string.Empty;
             }
         }
 
@@ -53,7 +53,7 @@ namespace Apskaita5.DAL.Common
         {
             get
             {
-                return _columnName.NotNullValue();
+                return _columnName?.Trim() ?? string.Empty;
             }
             set
             {
@@ -90,8 +90,8 @@ namespace Apskaita5.DAL.Common
         /// <remarks>Used to store native SQL data type information.</remarks>
         public string NativeDataType
         {
-            get { return _nativeDataType.NotNullValue(); }
-            set { _nativeDataType = value.NotNullValue().Trim(); }
+            get { return _nativeDataType?.Trim() ?? string.Empty; }
+            set { _nativeDataType = value?.Trim() ?? string.Empty; }
         }
 
         /// <summary>
@@ -102,7 +102,7 @@ namespace Apskaita5.DAL.Common
         {
             get
             {
-                if (_table == null)
+                if (_table.IsNull())
                     return -1;
                 return _table.Columns.IndexOf(this);
             }
@@ -150,8 +150,7 @@ namespace Apskaita5.DAL.Common
         public LightDataColumn(string columnName, Type dataType)
         {
 
-            if (dataType == null)
-                throw new ArgumentNullException(nameof(dataType));
+            if (null == dataType) throw new ArgumentNullException(nameof(dataType));
 
             _dataType = dataType;
 

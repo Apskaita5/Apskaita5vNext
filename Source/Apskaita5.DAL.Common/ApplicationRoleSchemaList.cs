@@ -46,7 +46,7 @@ namespace Apskaita5.DAL.Common
         public void MoveToIndex(ApplicationRoleSchema child, int indexToMove)
         {
 
-            if (child == null) throw new ArgumentNullException(nameof(child));
+            if (child.IsNull()) throw new ArgumentNullException(nameof(child));
 
             if (!this.Contains(child)) throw new ArgumentException(Apskaita5.DAL.Common.Properties.Resources.ApplicationRoleSchemaList_SchemaIsNotChild);
 
@@ -99,11 +99,11 @@ namespace Apskaita5.DAL.Common
         public void LoadDelimitedString(string delimitedString, string lineDelimiter, string fieldDelimiter)
         {
 
-            if (delimitedString == null || string.IsNullOrEmpty(delimitedString.Trim()))
+            if (delimitedString.IsNullOrWhiteSpace())
                 throw new ArgumentNullException(nameof(delimitedString));
-            if (lineDelimiter == null || lineDelimiter.Length < 1)
+            if (null == lineDelimiter || lineDelimiter.Length < 1)
                 throw new ArgumentNullException(nameof(lineDelimiter));
-            if (fieldDelimiter == null || fieldDelimiter.Length < 1)
+            if (null == fieldDelimiter || fieldDelimiter.Length < 1)
                 throw new ArgumentNullException(nameof(fieldDelimiter));
 
             if (!delimitedString.Contains(fieldDelimiter))

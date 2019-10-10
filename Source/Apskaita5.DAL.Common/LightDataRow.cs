@@ -3,6 +3,7 @@ using System.Data;
 using System.Globalization;
 using System.Reflection;
 using System.Text;
+using Apskaita5.DAL.Common.TypeConverters;
 
 namespace Apskaita5.DAL.Common
 {
@@ -29,7 +30,7 @@ namespace Apskaita5.DAL.Common
         {
             get
             {
-                if (_data == null) return 0;
+                if (null == _data) return 0;
                 return _data.Length;
             }
         }
@@ -50,7 +51,7 @@ namespace Apskaita5.DAL.Common
         {
             get
             {
-                if (column == null) throw new ArgumentNullException(nameof(column));
+                if (column.IsNull()) throw new ArgumentNullException(nameof(column));
                 if (!Object.ReferenceEquals(_table, column.Table))
                     throw new ArgumentException(Properties.Resources.LightDataRow_ColumnDoesNotBelongToTable);
 
@@ -59,23 +60,13 @@ namespace Apskaita5.DAL.Common
             }
             set
             {
-                if (column == null) throw new ArgumentNullException(nameof(column));
+                if (column.IsNull()) throw new ArgumentNullException(nameof(column));
                 if (!Object.ReferenceEquals(_table, column.Table))
                     throw new ArgumentException(Properties.Resources.LightDataRow_ColumnDoesNotBelongToTable);
                 if (column.ReadOnly)
                     throw new InvalidOperationException(Properties.Resources.LightDataRow_CannotEditReadOnlyColumn);
 
-                if (value == null)
-                {
-                    _data[column.Ordinal] = null;
-                    return;
-                }
-                if (column.DataType.IsAssignableFrom(value.GetType()))
-                {
-                    _data[column.Ordinal] = CloneValue(value);
-                }
-
-                throw new ArgumentException(Properties.Resources.LightDataRow_DataTypeMismatch);
+                SetValue(column.Ordinal, value);
 
             }
         }
@@ -103,18 +94,7 @@ namespace Apskaita5.DAL.Common
                 CheckIndex(columnIndex);
                 if (_table.Columns[columnIndex].ReadOnly)
                     throw new InvalidOperationException(Properties.Resources.LightDataRow_CannotEditReadOnlyColumn);
-
-                if (value == null)
-                {
-                    _data[columnIndex] = null;
-                    return;
-                }
-                if (_table.Columns[columnIndex].DataType.IsAssignableFrom(value.GetType()))
-                {
-                    _data[columnIndex] = CloneValue(value);
-                }
-
-                throw new ArgumentException(Properties.Resources.LightDataRow_DataTypeMismatch);
+                SetValue(columnIndex, value);
             }
         }
 
@@ -134,17 +114,34 @@ namespace Apskaita5.DAL.Common
             get
             {
                 var column = _table.Columns[columnName];
-                if (column == null)
-                    throw new ArgumentException(Properties.Resources.LightDataRow_ColumnNotFoundByName);
+                if (column.IsNull())
+                    throw new ArgumentException(string.Format(Properties.Resources.LightDataRow_ColumnDoesNotExist, columnName));
                 return this[column];
             }
             set
             {
                 var column = _table.Columns[columnName];
-                if (column == null)
-                    throw new ArgumentException(Properties.Resources.LightDataRow_ColumnNotFoundByName);
-                this[column] = value;
+                if (column.IsNull())
+                    throw new ArgumentException(string.Format(Properties.Resources.LightDataRow_ColumnDoesNotExist, columnName));
+                SetValue(column.Ordinal, value);
             }
+        }
+
+        private void SetValue(int columnIndex, object value)
+        {
+            if (value.IsNull())
+            {
+                _data[columnIndex] = null;
+                return;
+            }
+            if (_table.Columns[columnIndex].DataType.IsAssignableFrom(value.GetType()))
+            {
+                _data[columnIndex] = CloneValue(value);
+                return;
+            }
+
+            throw new ArgumentException(string.Format(Properties.Resources.LightDataRow_DataTypeMismatchException,
+                value.GetType().FullName, _table.Columns[columnIndex].DataType.FullName));
         }
 
 
@@ -181,9 +178,9 @@ namespace Apskaita5.DAL.Common
         internal LightDataRow(LightDataTable table, IDataReader reader)
         {
 
-            if (table == null)
+            if (table.IsNull())
                 throw new ArgumentNullException(nameof(table));
-            if (reader == null)
+            if (reader.IsNull())
                 throw new ArgumentNullException(nameof(reader));
             if (table.Columns.Count < 1)
                 throw new InvalidOperationException(Properties.Resources.LightDataRow_TableHasNoColumns);
@@ -212,9 +209,9 @@ namespace Apskaita5.DAL.Common
         /// <exception cref="ArgumentException">Value array field count does not match table column count.</exception>
         internal LightDataRow(LightDataTable table, Object[] values)
         {
-            if (table == null)
+            if (table.IsNull())
                 throw new ArgumentNullException(nameof(table));
-            if (values == null || values.Length < 1)
+            if (null == values || values.Length < 1)
                 throw new ArgumentNullException(nameof(values));
             if (table.Columns.Count < 1)
                 throw new InvalidOperationException(Properties.Resources.LightDataRow_TableHasNoColumns);
@@ -234,9 +231,9 @@ namespace Apskaita5.DAL.Common
 
         internal LightDataRow(LightDataTable table, LightDataRowProxy proxy)
         {
-            if (table == null)
+            if (table.IsNull())
                 throw new ArgumentNullException(nameof(table));
-            if (proxy == null || proxy.Values == null || proxy.Values.Length < 1)
+            if (proxy.IsNull() || null == proxy.Values || proxy.Values.Length < 1)
                 throw new ArgumentNullException(nameof(proxy));
 
             _data = new object[proxy.Values.Length];
@@ -290,6 +287,7 @@ namespace Apskaita5.DAL.Common
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         public object GetValue(int i)
         {
+            CheckIndex(i);
             return this[i];
         }
 
@@ -331,11 +329,11 @@ namespace Apskaita5.DAL.Common
         /// <exception cref="ArgumentException">The column does not belong to this table.</exception>
         public bool IsNull(LightDataColumn column)
         {
-            if (column == null) throw new ArgumentNullException(nameof(column));
+            if (column.IsNull()) throw new ArgumentNullException(nameof(column));
             if (!Object.ReferenceEquals(_table, column.Table))
                 throw new ArgumentException(Properties.Resources.LightDataRow_ColumnDoesNotBelongToTable);
 
-            return (_data[column.Ordinal] == null || _data[column.Ordinal] == DBNull.Value);
+            return _data[column.Ordinal].IsNull();
         }
 
         /// <summary>
@@ -346,7 +344,7 @@ namespace Apskaita5.DAL.Common
         public bool IsNull(int columnIndex)
         {
             CheckIndex(columnIndex);
-            return (_data[columnIndex] == null || _data[columnIndex] == DBNull.Value);
+            return _data[columnIndex].IsNull();
         }
 
         /// <summary>
@@ -357,9 +355,9 @@ namespace Apskaita5.DAL.Common
         public bool IsNull(string columnName)
         {
             var column = _table.Columns[columnName];
-            if (column == null)
-                throw new ArgumentException(Properties.Resources.LightDataRow_ColumnNotFoundByName);
-            return (_data[column.Ordinal] == null || _data[column.Ordinal] == DBNull.Value);
+            if (column.IsNull())
+                throw new ArgumentException(string.Format(Properties.Resources.LightDataRow_ColumnDoesNotExist, columnName));
+            return _data[column.Ordinal].IsNull();
         }
 
         /// <summary>
@@ -369,7 +367,7 @@ namespace Apskaita5.DAL.Common
         /// <exception cref="IndexOutOfRangeException">The index argument is out of range.</exception>
         public bool IsDBNull(LightDataColumn column)
         {
-            if (column == null) throw new ArgumentNullException(nameof(column));
+            if (column.IsNull()) throw new ArgumentNullException(nameof(column));
             if (!Object.ReferenceEquals(_table, column.Table))
                 throw new ArgumentException(Properties.Resources.LightDataRow_ColumnDoesNotBelongToTable);
             return (_data[column.Ordinal] != null && _data[column.Ordinal] == DBNull.Value);
@@ -394,13 +392,15 @@ namespace Apskaita5.DAL.Common
         public bool IsDBNull(string columnName)
         {
             var column = _table.Columns[columnName];
-            if (column == null)
-                throw new ArgumentException(Properties.Resources.LightDataRow_ColumnNotFoundByName);
+            if (column.IsNull())
+                throw new ArgumentException(string.Format(Properties.Resources.LightDataRow_ColumnDoesNotExist, columnName));
             return (_data[column.Ordinal] != null && _data[column.Ordinal] == DBNull.Value);
         }
 
         #region Type Converters
 
+        #region By Index
+        
         /// <summary>
         /// Gets the data stored in the column specified as boolean.
         /// </summary>
@@ -411,46 +411,11 @@ namespace Apskaita5.DAL.Common
         /// if the underlying value type is byte[], tries to convert to string using UTF8 encoding 
         /// and parse the string.</remarks>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
-        /// <exception cref="InvalidCastException">Failed to cast type on the null column value.</exception>
-        /// <exception cref="FormatException">The column value is not in an appropriate format.</exception>
+        /// <exception cref="ArgumentNullException">Failed to convert null value.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
         public bool GetBoolean(int i)
-        {
-
-            var raw = GetValueForCast(i, true);
-
-            if (raw is bool)
-                return (bool)_data[i];
-
-            if (raw is sbyte)
-                return (sbyte)raw != 0;
-            if (raw is byte)
-                return (byte)raw != 0;
-            if (raw is short)
-                return (short)raw != 0;
-            if (raw is ushort)
-                return (ushort)raw != 0;
-            if (raw is int)
-                return (int)raw != 0;
-            if (raw is uint)
-                return (uint)raw != 0;
-            if (raw is long)
-                return (long)raw != 0;
-            if (raw is ulong)
-                return (ulong)raw != 0;
-
-            if (TryReadString(raw, out string stringValue) && !stringValue.IsNullOrWhiteSpace())
-            {
-                if (stringValue.Trim().ToUpperInvariant() == "TRUE")
-                    return true;
-                if (stringValue.Trim().ToUpperInvariant() == "FALSE")
-                    return false;
-
-                if (long.TryParse(stringValue, NumberStyles.Any, CultureInfo.InvariantCulture, out long intValue))
-                    return (intValue != 0);
-            }
-
-            throw new FormatException(Properties.Resources.LightDataRow_ColumnValueFormatInvalid);
-
+        {     
+            return GetValueForCast(i, true).GetBoolean();
         }
 
         /// <summary>
@@ -463,26 +428,11 @@ namespace Apskaita5.DAL.Common
         /// Tries to convert to string using UTF8 encoding and parse value using InvariantCulture 
         /// if the underlying value type is byte array.</remarks>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
-        /// <exception cref="InvalidCastException">Failed to cast type on the null column value.</exception>
-        /// <exception cref="FormatException">The column value is not in an appropriate format.</exception>
+        /// <exception cref="ArgumentNullException">Failed to convert null value.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
         public byte GetByte(int i)
         {
-            var raw = GetValueForCast(i, true);
-
-            if (raw is byte)
-                return (byte)raw;
-
-            if (raw is sbyte)
-                return checked((byte)(sbyte)raw);
-
-            if (TryReadString(raw, out string stringValue) && !stringValue.IsNullOrWhiteSpace())
-            {
-                if (byte.TryParse((string)raw, NumberStyles.Any, CultureInfo.InvariantCulture, out byte byteValue))
-                    return byteValue;
-            }
-
-            throw new FormatException(Properties.Resources.LightDataRow_ColumnValueFormatInvalid);
-
+            return GetValueForCast(i, true).GetByte();
         }
 
         /// <summary>
@@ -491,17 +441,11 @@ namespace Apskaita5.DAL.Common
         /// <param name="i">The zero-based index of the column.</param>
         /// <remarks>Only returns a sbyte value if the underlying value type is sbyte.</remarks>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
-        /// <exception cref="InvalidCastException">Failed to cast type on the null column value.</exception>
-        /// <exception cref="FormatException">The column value is not in an appropriate format.</exception>
+        /// <exception cref="ArgumentNullException">Failed to convert null value.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
         public sbyte GetSByte(int i)
         {
-            var raw = GetValueForCast(i, true);
-            
-            if (raw is sbyte)
-                return (sbyte)raw;
-
-            throw new FormatException(Properties.Resources.LightDataRow_ColumnValueFormatInvalid);
-
+            return GetValueForCast(i, true).GetSByte();
         }
 
         /// <summary>
@@ -526,24 +470,11 @@ namespace Apskaita5.DAL.Common
         /// Tries to convert to string using UTF8 encoding and to return the first char (after Trim)
         /// if the underlying value type is byte array.</remarks>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
-        /// <exception cref="InvalidCastException">Failed to cast type on the null column value.</exception>
-        /// <exception cref="FormatException">The column value is not in an appropriate format.</exception>
+        /// <exception cref="ArgumentNullException">Failed to convert null value.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
         public char GetChar(int i)
-        {
-
-            var raw = GetValueForCast(i, true);
-
-            if (raw is char)
-                return (char)raw;
-
-            if (TryReadString(raw, out string stringValue) && stringValue != null)
-            {
-                if (stringValue.Trim().Length > 0) return stringValue.Trim().ToCharArray()[0];
-                else if (stringValue.Length > 0) return stringValue.ToCharArray()[0];
-                else throw new InvalidCastException(Properties.Resources.LightDataRow_CannotCastTypeOnNull);
-            }
-
-            throw new FormatException(Properties.Resources.LightDataRow_ColumnValueFormatInvalid);
+        {    
+            return GetValueForCast(i, true).GetChar();
         }
 
         /// <summary>
@@ -569,38 +500,11 @@ namespace Apskaita5.DAL.Common
         /// Tries to convert to string using UTF8 encoding and parse the string 
         /// if the underlying value type is byte array and it's size is not 16.</remarks>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
-        /// <exception cref="FormatException">The column value is not in an appropriate format.</exception>
+        /// <exception cref="ArgumentNullException">Failed to convert null value.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
         public Guid GetGuid(int i)
-        {
-
-            var raw = GetValueForCast(i, false);
-
-            if (raw == null) return Guid.Empty;
-
-            if (raw is Guid)
-                return (Guid)raw;
-
-            if (raw is string)
-            {
-                if (((string)raw).IsNullOrWhiteSpace())
-                    return Guid.Empty;
-                return new Guid(raw as string);
-            }
-
-            if (raw is byte[])
-            {
-                if (((byte[])raw).Length < 1) 
-                    return Guid.Empty;
-                if (((byte[])raw).Length == 16) 
-                    return new Guid((byte[])raw);
-
-                if (TryReadString((byte[])raw, out string stringValue))
-                    return new Guid(stringValue);
-
-            }
-
-            throw new FormatException(Properties.Resources.LightDataRow_ColumnValueFormatInvalid);
-
+        {   
+            return GetValueForCast(i, false).GetGuid();
         }
 
         /// <summary>
@@ -612,41 +516,11 @@ namespace Apskaita5.DAL.Common
         /// Tries to convert to string using UTF8 encoding and parse value using InvariantCulture 
         /// if the underlying value type is byte array.</remarks>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
-        /// <exception cref="InvalidCastException">Failed to cast type on the null column value.</exception>
-        /// <exception cref="FormatException">The column value is not in an appropriate format.</exception>
+        /// <exception cref="ArgumentNullException">Failed to convert null value.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
         public short GetInt16(int i)
-        {
-
-            var raw = GetValueForCast(i, true);
-
-            if (raw is short)
-                return (short)raw;
-
-            if (raw is sbyte)
-                return (sbyte)raw;
-            if (raw is byte)
-                return (byte)raw;
-            if (raw is ushort)
-                return checked((short)(ushort)raw);
-            if (raw is int)
-                return checked((short)(int)raw);
-            if (raw is uint)
-                return checked((short)(uint)raw);
-            if (raw is long)
-                return checked((short)(long)raw);
-            if (raw is ulong)
-                return checked((short)(ulong)raw);
-            if (raw is decimal)
-                return (short)(decimal)raw;
-
-            if (TryReadString(raw, out string stringValue) && !stringValue.IsNullOrWhiteSpace())
-            {
-                if (long.TryParse(stringValue, NumberStyles.Any, CultureInfo.InvariantCulture, out long intValue))
-                    return checked((short)intValue);
-            }
-
-            throw new FormatException(Properties.Resources.LightDataRow_ColumnValueFormatInvalid);
-
+        {    
+            return GetValueForCast(i, true).GetInt16();
         }
 
         /// <summary>
@@ -658,41 +532,11 @@ namespace Apskaita5.DAL.Common
         /// Tries to convert to string using UTF8 encoding and parse value using InvariantCulture 
         /// if the underlying value type is byte array.</remarks>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
-        /// <exception cref="InvalidCastException">Failed to cast type on the null column value.</exception>
-        /// <exception cref="FormatException">The column value is not in an appropriate format.</exception>
+        /// <exception cref="ArgumentNullException">Failed to convert null value.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
         public int GetInt32(int i)
-        {
-
-            var raw = GetValueForCast(i, true);
-
-            if (raw is int)
-                return (int)raw;
-
-            if (raw is sbyte)
-                return (sbyte)raw;
-            if (raw is byte)
-                return (byte)raw;
-            if (raw is short)
-                return (short)raw;
-            if (raw is ushort)
-                return (ushort)raw;
-            if (raw is uint)
-                return checked((int)(uint)raw);
-            if (raw is long)
-                return checked((int)(long)raw);
-            if (raw is ulong)
-                return checked((int)(ulong)raw);
-            if (raw is decimal)
-                return (int)(decimal)raw;
-
-            if (TryReadString(raw, out string stringValue) && !stringValue.IsNullOrWhiteSpace())
-            {
-                if (long.TryParse(stringValue, NumberStyles.Any, CultureInfo.InvariantCulture, out long intValue))
-                    return checked((int)intValue);
-            }
-
-            throw new FormatException(Properties.Resources.LightDataRow_ColumnValueFormatInvalid);
-
+        {   
+            return GetValueForCast(i, true).GetInt32();
         }
 
         /// <summary>
@@ -704,41 +548,11 @@ namespace Apskaita5.DAL.Common
         /// Tries to convert to string using UTF8 encoding and parse value using InvariantCulture 
         /// if the underlying value type is byte array.</remarks>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
-        /// <exception cref="InvalidCastException">Failed to cast type on the null column value.</exception>
-        /// <exception cref="FormatException">The column value is not in an appropriate format.</exception>
+        /// <exception cref="ArgumentNullException">Failed to convert null value.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
         public long GetInt64(int i)
-        {
-
-            var raw = GetValueForCast(i, true);
-
-            if (raw is long)
-                return (long)raw;
-
-            if (raw is sbyte)
-                return (sbyte)raw;
-            if (raw is byte)
-                return (byte)raw;
-            if (raw is short)
-                return (short)raw;
-            if (raw is ushort)
-                return (ushort)raw;
-            if (raw is int)
-                return (int)raw;
-            if (raw is uint)
-                return (uint)raw;
-            if (raw is ulong)
-                return checked((long)(ulong)raw);
-            if (raw is decimal)
-                return (long)(decimal)raw;
-
-            if (TryReadString(raw, out string stringValue) && !stringValue.IsNullOrWhiteSpace())
-            {
-                if (long.TryParse(stringValue, NumberStyles.Any, CultureInfo.InvariantCulture, out long intValue))
-                    return intValue;
-            }
-
-            throw new FormatException(Properties.Resources.LightDataRow_ColumnValueFormatInvalid);
-
+        {    
+            return GetValueForCast(i, true).GetInt64();
         }
 
         /// <summary>
@@ -749,22 +563,11 @@ namespace Apskaita5.DAL.Common
         /// Tries to convert to string using UTF8 encoding and parse value using InvariantCulture 
         /// if the underlying value type is byte array.</remarks>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
-        /// <exception cref="InvalidCastException">Failed to cast type on the null column value.</exception>
-        /// <exception cref="FormatException">The column value is not in an appropriate format.</exception>
+        /// <exception cref="ArgumentNullException">Failed to convert null value.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
         public float GetFloat(int i)
         {
-            var raw = GetValueForCast(i, true);
-
-            if (raw is float)
-                return (float) raw;
-
-            if (TryReadString(raw, out string stringValue) && !stringValue.IsNullOrWhiteSpace())
-            {
-                if (float.TryParse(stringValue, NumberStyles.Any, CultureInfo.InvariantCulture, out float floatValue))
-                    return floatValue;
-            }
-
-            throw new FormatException(Properties.Resources.LightDataRow_ColumnValueFormatInvalid);
+            return GetValueForCast(i, true).GetFloat();
         }
 
         /// <summary>
@@ -776,26 +579,11 @@ namespace Apskaita5.DAL.Common
         /// Tries to convert to string using UTF8 encoding and parse value using InvariantCulture 
         /// if the underlying value type is byte array.</remarks>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
-        /// <exception cref="InvalidCastException">Failed to cast type on the null column value.</exception>
-        /// <exception cref="FormatException">The column value is not in an appropriate format.</exception>
+        /// <exception cref="ArgumentNullException">Failed to convert null value.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
         public double GetDouble(int i)
-        {
-
-            var raw = GetValueForCast(i, true);
-
-            if (raw is double)
-                return (double)raw;
-            if (raw is float)
-                return (float)raw;
-
-            if (TryReadString(raw, out string stringValue) && !stringValue.IsNullOrWhiteSpace())
-            {
-                if (double.TryParse(stringValue, NumberStyles.Any, CultureInfo.InvariantCulture, out double doubleValue))
-                    return doubleValue;
-            }
-
-            throw new FormatException(Properties.Resources.LightDataRow_ColumnValueFormatInvalid);
-
+        {   
+            return GetValueForCast(i, true).GetDouble();
         }
 
         /// <summary>
@@ -808,24 +596,8 @@ namespace Apskaita5.DAL.Common
         /// Tries to cast to string in other cases.</remarks>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         public string GetString(int i)
-        {
-
-            var raw = GetValueForCast(i, false);
-
-            if (raw == null)
-                return null;
-
-            if (raw is string)
-                return (string) raw;
-
-            if (raw is byte[])
-            {
-                if (TryReadString((byte[])raw, out string stringValue))
-                    return stringValue;
-            }
-
-            return (string)raw;
-
+        {     
+            return GetValueForCast(i, false).GetString();
         }
 
         /// <summary>
@@ -836,55 +608,32 @@ namespace Apskaita5.DAL.Common
         /// Tries to convert to string using UTF8 encoding and parse value using InvariantCulture 
         /// if the underlying value type is byte array.</remarks>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
-        /// <exception cref="InvalidCastException">Failed to cast type on the null column value.</exception>
-        /// <exception cref="FormatException">The column value is not in an appropriate format.</exception>
+        /// <exception cref="ArgumentNullException">Failed to convert null value.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
         public decimal GetDecimal(int i)
-        {
-
-            var raw = GetValueForCast(i, true);
-
-            if (raw is decimal)
-                return (decimal)raw;
-
-            if (TryReadString(raw, out string stringValue) && !stringValue.IsNullOrWhiteSpace())
-            {
-                if (decimal.TryParse(stringValue, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal decimalValue))
-                    return decimalValue;
-            }
-
-            throw new FormatException(Properties.Resources.LightDataRow_ColumnValueFormatInvalid);
-
+        {    
+            return GetValueForCast(i, true).GetDecimal();
         }
 
         /// <summary>
         /// Gets the data stored in the column specified as DateTime.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
-        /// <remarks>Tries to parse the value using either formats specified by 
+        /// <remarks>Tries to parse the value using either default formats or formats specified by 
         /// <see cref="LightDataTable.DateTimeFormats">parent table</see>
-        /// or <see cref="LightDataTable.GetDefaultDateTimeFormats">default formats</see>
         /// if the underlying value type is string. 
         /// Tries to convert to string using UTF8 encoding and parse the string 
         /// if the underlying value type is byte array.
         /// Tries to cast to DateTime in other cases.</remarks>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
-        /// <exception cref="InvalidCastException">Failed to cast type on the null column value.</exception>
+        /// <exception cref="ArgumentNullException">Failed to convert null value.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
         public DateTime GetDateTime(int i)
         {
-
-            var raw = GetValueForCast(i, true);
-
-            if (raw is DateTime)
-                return (DateTime)raw;
-
-            if (TryReadString(raw, out string stringValue) && !stringValue.IsNullOrWhiteSpace())
-            {
-                if (TryParseDateTime(stringValue, out DateTime dateTimeValue))
-                    return dateTimeValue;
-            }
-
-            return (DateTime)raw;
-
+            if (_table.DateTimeFormats.IsNull() || _table.DateTimeFormats.Count < 1)
+            { return GetValueForCast(i, true).GetDateTime();  }
+            else
+            { return GetValueForCast(i, true).GetDateTime(_table.DateTimeFormats.ToArray()); }
         }
 
         /// <summary>
@@ -894,7 +643,8 @@ namespace Apskaita5.DAL.Common
         /// <remarks>Uses <see cref="GetDateTime">GetDateTime</see> method to get a DateTime
         /// value and initializes a DateTimeOffset value with it.</remarks>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
-        /// <exception cref="InvalidCastException">Failed to cast type on the null column value.</exception>
+        /// <exception cref="ArgumentNullException">Failed to convert null value.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
         public DateTimeOffset GetDateTimeOffset(int i)
         {
             return new DateTimeOffset(DateTime.SpecifyKind(GetDateTime(i), DateTimeKind.Utc));
@@ -906,16 +656,10 @@ namespace Apskaita5.DAL.Common
         /// <param name="i">The zero-based index of the column.</param>
         /// <remarks>Returns null if the underlying value is null.</remarks>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
-        /// <exception cref="InvalidCastException">The column value is not a byte array.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
         public byte[] GetByteArray(int i)
         {
-            var raw = GetValueForCast(i, false);
-
-            if (raw == null) return null;
-
-            if (raw is byte[]) return (byte[])CloneValue(raw);
-
-            throw new InvalidCastException(Properties.Resources.LightDataRow_ColumnValueIsNotByteArray);
+            return GetValueForCast(i, false).GetByteArray();
         }
 
         /// <summary>
@@ -927,41 +671,198 @@ namespace Apskaita5.DAL.Common
         /// Gets an enum value by converting int value (if it is int value) to the appropriate enum value
         /// or by parsing string value (if it is string value) to the appropriate enum value.</remarks>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
-        /// <exception cref="InvalidCastException">Failed to cast type on the null column value.</exception>
-        /// <exception cref="FormatException">The column value is not in an appropriate format.</exception>
+        /// <exception cref="ArgumentNullException">Failed to convert null value.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format 
+        /// or string/int value is not defined for the enumeration.</exception>
         /// <exception cref="ArgumentException">Type T is not an enumeration.</exception>
-        /// <exception cref="InvalidCastException">Enum value for int code is not defined.</exception>
         public T GetEnum<T>(int i) 
         {
-            if (!typeof(T).IsEnum)
-                throw new ArgumentException(string.Format(Properties.Resources.LightDataRow_ColumnValueIsNotEnumeration, typeof(T).FullName));
-
-            if (TryGetInt32(i, out int intValue))
-            {
-                if (!Enum.IsDefined(typeof(T), intValue))
-                    throw new InvalidCastException(string.Format(Properties.Resources.LightDataRow_EnumValueInvalid,
-                        typeof(T).Name, intValue.ToString()));
-
-                return (T)(object)intValue;
-            }
-
-            if (TryReadString(GetValueForCast(i, true), out string stringValue) && !stringValue.IsNullOrWhiteSpace())
-            {
-                try
-                {
-                    return (T)Enum.Parse(typeof(T), stringValue, true);
-                }
-                catch (Exception)
-                {
-                    throw new InvalidCastException(string.Format(Properties.Resources.LightDataRow_EnumStringValueInvalid,
-                        typeof(T).Name, stringValue));
-                }
-            }
-
-            throw new FormatException(Properties.Resources.LightDataRow_ColumnValueFormatInvalid);
-
+            return GetValueForCast(i, true).GetEnum<T>();
         }
 
+        /// <summary>
+        /// Gets the data stored in the column specified as boolean.
+        /// </summary>
+        /// <param name="i">The zero-based index of the column.</param>
+        /// <remarks>If the underlying value type is numeric, returns "!= 0".
+        /// If the underlying value type is string, tries to parse value as "true" or "false"
+        /// or to parse Int64 value using InvariantCulture and do "!= 0" conversion. 
+        /// if the underlying value type is byte[], tries to convert to string using UTF8 encoding 
+        /// and parse the string.</remarks>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
+        public bool? GetNullableBoolean(int i)
+        {
+            return GetValueForCast(i, true).GetBooleanNullable();
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as byte.
+        /// </summary>
+        /// <param name="i">The zero-based index of the column.</param>
+        /// <remarks>Does checked conversions if the underlying value type is sbyte. 
+        /// (narrowing conversion from int types does not make sense for byte)
+        /// Tries to parse value using InvariantCulture if the underlying value type is string.
+        /// Tries to convert to string using UTF8 encoding and parse value using InvariantCulture 
+        /// if the underlying value type is byte array.</remarks>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
+        public byte? GetByteNullable(int i)
+        {
+            return GetValueForCast(i, true).GetByteNullable();
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as sbyte.
+        /// </summary>
+        /// <param name="i">The zero-based index of the column.</param>
+        /// <remarks>Only returns a sbyte value if the underlying value type is sbyte.</remarks>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
+        public sbyte? GetSByteNullable(int i)
+        {
+            return GetValueForCast(i, true).GetSByteNullable();
+        }
+                
+        /// <summary>
+        /// Gets the data stored in the column specified as char.
+        /// </summary>
+        /// <param name="i">The zero-based index of the column.</param>
+        /// <remarks>Returns the first char (after Trim) if the underlying value type is string.
+        /// Tries to convert to string using UTF8 encoding and to return the first char (after Trim)
+        /// if the underlying value type is byte array.</remarks>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
+        public char? GetCharNullable(int i)
+        {
+            return GetValueForCast(i, true).GetCharNullable();
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as Guid.
+        /// </summary>
+        /// <param name="i">The zero-based index of the column.</param>
+        /// <remarks>Tries to parse value if the underlying value type is string or 16 byte array.
+        /// Tries to convert to string using UTF8 encoding and parse the string 
+        /// if the underlying value type is byte array and it's size is not 16.</remarks>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
+        public Guid? GetGuidNullable(int i)
+        {
+            return GetValueForCast(i, false).GetGuidNullable();
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as Int16.
+        /// </summary>
+        /// <param name="i">The zero-based index of the column.</param>
+        /// <remarks>Does checked conversions if the underlying value type is numeric or decimal.
+        /// Tries to parse value using InvariantCulture if the underlying value type is string.
+        /// Tries to convert to string using UTF8 encoding and parse value using InvariantCulture 
+        /// if the underlying value type is byte array.</remarks>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
+        public short? GetInt16Nullable(int i)
+        {
+            return GetValueForCast(i, true).GetInt16Nullable();
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as Int32.
+        /// </summary>
+        /// <param name="i">The zero-based index of the column.</param>
+        /// <remarks>Does checked conversions if the underlying value type is numeric or decimal.
+        /// Tries to parse value using InvariantCulture if the underlying value type is string.
+        /// Tries to convert to string using UTF8 encoding and parse value using InvariantCulture 
+        /// if the underlying value type is byte array.</remarks>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
+        public int? GetInt32Nullable(int i)
+        {
+            return GetValueForCast(i, true).GetInt32Nullable();
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as Int64.
+        /// </summary>
+        /// <param name="i">The zero-based index of the column.</param>
+        /// <remarks>Does checked conversions if the underlying value type is numeric or decimal.
+        /// Tries to parse value using InvariantCulture if the underlying value type is string.
+        /// Tries to convert to string using UTF8 encoding and parse value using InvariantCulture 
+        /// if the underlying value type is byte array.</remarks>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
+        public long? GetInt64Nullable(int i)
+        {
+            return GetValueForCast(i, true).GetInt64Nullable();
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as float.
+        /// </summary>
+        /// <param name="i">The zero-based index of the column.</param>
+        /// <remarks>Tries to parse value using InvariantCulture if the underlying value type is string.
+        /// Tries to convert to string using UTF8 encoding and parse value using InvariantCulture 
+        /// if the underlying value type is byte array.</remarks>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
+        public float? GetFloatNullable(int i)
+        {
+            return GetValueForCast(i, true).GetFloatNullable();
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as double.
+        /// </summary>
+        /// <param name="i">The zero-based index of the column.</param>
+        /// <remarks>Casts to double if the underlying value type is float.
+        /// Tries to parse value using InvariantCulture if the underlying value type is string.
+        /// Tries to convert to string using UTF8 encoding and parse value using InvariantCulture 
+        /// if the underlying value type is byte array.</remarks>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
+        public double? GetDoubleNullable(int i)
+        {
+            return GetValueForCast(i, true).GetDoubleNullable();
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as decimal.
+        /// </summary>
+        /// <param name="i">The zero-based index of the column.</param>
+        /// <remarks>Tries to parse value using InvariantCulture if the underlying value type is string.
+        /// Tries to convert to string using UTF8 encoding and parse value using InvariantCulture 
+        /// if the underlying value type is byte array.</remarks>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
+        public decimal? GetDecimalNullable(int i)
+        {
+            return GetValueForCast(i, true).GetDecimalNullable();
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as DateTime.
+        /// </summary>
+        /// <param name="i">The zero-based index of the column.</param>
+        /// <remarks>Tries to parse the value using either default formats or formats specified by 
+        /// <see cref="LightDataTable.DateTimeFormats">parent table</see>
+        /// if the underlying value type is string. 
+        /// Tries to convert to string using UTF8 encoding and parse the string 
+        /// if the underlying value type is byte array.
+        /// Tries to cast to DateTime in other cases.</remarks>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
+        public DateTime? GetDateTimeNullable(int i)
+        {
+            if (_table.DateTimeFormats.IsNull() || _table.DateTimeFormats.Count < 1)
+            { return GetValueForCast(i, true).GetDateTimeNullable(); }
+            else
+            { return GetValueForCast(i, true).GetDateTimeNullable(_table.DateTimeFormats.ToArray()); }
+        }
+        
+        #endregion
+
+        #region By Column Name
 
         /// <summary>
         /// Gets the data stored in the column specified as boolean.
@@ -973,11 +874,11 @@ namespace Apskaita5.DAL.Common
         /// if the underlying value type is byte[], tries to convert to string using UTF8 encoding 
         /// and parse the string.</remarks>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
-        /// <exception cref="InvalidCastException">Failed to cast type on the null column value.</exception>
-        /// <exception cref="FormatException">The column value is not in an appropriate format.</exception>
+        /// <exception cref="ArgumentNullException">Failed to convert null value.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
         public bool GetBoolean(string columnName)
         {
-            return GetBoolean(GetOrdinal(columnName));
+            return GetValueForCast(columnName, true).GetBoolean();
         }
 
         /// <summary>
@@ -990,11 +891,11 @@ namespace Apskaita5.DAL.Common
         /// Tries to convert to string using UTF8 encoding and parse value using InvariantCulture 
         /// if the underlying value type is byte array.</remarks>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
-        /// <exception cref="InvalidCastException">Failed to cast type on the null column value.</exception>
-        /// <exception cref="FormatException">The column value is not in an appropriate format.</exception>
+        /// <exception cref="ArgumentNullException">Failed to convert null value.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
         public byte GetByte(string columnName)
         {
-            return GetByte(GetOrdinal(columnName));
+            return GetValueForCast(columnName, true).GetByte();
         }
 
         /// <summary>
@@ -1003,11 +904,11 @@ namespace Apskaita5.DAL.Common
         /// <param name="columnName">A name of the column.</param>
         /// <remarks>Only returns a sbyte value if the underlying value type is sbyte.</remarks>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
-        /// <exception cref="InvalidCastException">Failed to cast type on the null column value.</exception>
-        /// <exception cref="FormatException">The column value is not in an appropriate format.</exception>
+        /// <exception cref="ArgumentNullException">Failed to convert null value.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
         public sbyte GetSByte(string columnName)
         {
-            return GetSByte(GetOrdinal(columnName));
+            return GetValueForCast(columnName, true).GetSByte();
         }
 
         /// <summary>
@@ -1018,11 +919,11 @@ namespace Apskaita5.DAL.Common
         /// Tries to convert to string using UTF8 encoding and to return the first char (after Trim)
         /// if the underlying value type is byte array.</remarks>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
-        /// <exception cref="InvalidCastException">Failed to cast type on the null column value.</exception>
-        /// <exception cref="FormatException">The column value is not in an appropriate format.</exception>
+        /// <exception cref="ArgumentNullException">Failed to convert null value.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
         public char GetChar(string columnName)
         {
-            return GetChar(GetOrdinal(columnName));
+            return GetValueForCast(columnName, true).GetChar();
         }
 
         /// <summary>
@@ -1034,10 +935,11 @@ namespace Apskaita5.DAL.Common
         /// Tries to convert to string using UTF8 encoding and parse the string 
         /// if the underlying value type is byte array and it's size is not 16.</remarks>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
-        /// <exception cref="FormatException">The column value is not in an appropriate format.</exception>
+        /// <exception cref="ArgumentNullException">Failed to convert null value.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
         public Guid GetGuid(string columnName)
         {
-            return GetGuid(GetOrdinal(columnName));
+            return GetValueForCast(columnName, false).GetGuid();
         }
 
         /// <summary>
@@ -1049,11 +951,11 @@ namespace Apskaita5.DAL.Common
         /// Tries to convert to string using UTF8 encoding and parse value using InvariantCulture 
         /// if the underlying value type is byte array.</remarks>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
-        /// <exception cref="InvalidCastException">Failed to cast type on the null column value.</exception>
-        /// <exception cref="FormatException">The column value is not in an appropriate format.</exception>
+        /// <exception cref="ArgumentNullException">Failed to convert null value.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
         public short GetInt16(string columnName)
         {
-            return GetInt16(GetOrdinal(columnName));
+            return GetValueForCast(columnName, true).GetInt16();
         }
 
         /// <summary>
@@ -1065,11 +967,11 @@ namespace Apskaita5.DAL.Common
         /// Tries to convert to string using UTF8 encoding and parse value using InvariantCulture 
         /// if the underlying value type is byte array.</remarks>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
-        /// <exception cref="InvalidCastException">Failed to cast type on the null column value.</exception>
-        /// <exception cref="FormatException">The column value is not in an appropriate format.</exception>
+        /// <exception cref="ArgumentNullException">Failed to convert null value.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
         public int GetInt32(string columnName)
         {
-            return GetInt32(GetOrdinal(columnName));
+            return GetValueForCast(columnName, true).GetInt32();
         }
 
         /// <summary>
@@ -1081,11 +983,11 @@ namespace Apskaita5.DAL.Common
         /// Tries to convert to string using UTF8 encoding and parse value using InvariantCulture 
         /// if the underlying value type is byte array.</remarks>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
-        /// <exception cref="InvalidCastException">Failed to cast type on the null column value.</exception>
-        /// <exception cref="FormatException">The column value is not in an appropriate format.</exception>
+        /// <exception cref="ArgumentNullException">Failed to convert null value.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
         public long GetInt64(string columnName)
         {
-            return GetInt64(GetOrdinal(columnName));
+            return GetValueForCast(columnName, true).GetInt64();
         }
 
         /// <summary>
@@ -1096,11 +998,11 @@ namespace Apskaita5.DAL.Common
         /// Tries to convert to string using UTF8 encoding and parse value using InvariantCulture 
         /// if the underlying value type is byte array.</remarks>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
-        /// <exception cref="InvalidCastException">Failed to cast type on the null column value.</exception>
-        /// <exception cref="FormatException">The column value is not in an appropriate format.</exception>
+        /// <exception cref="ArgumentNullException">Failed to convert null value.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
         public float GetFloat(string columnName)
         {
-            return GetFloat(GetOrdinal(columnName));
+            return GetValueForCast(columnName, true).GetFloat();
         }
 
         /// <summary>
@@ -1112,11 +1014,11 @@ namespace Apskaita5.DAL.Common
         /// Tries to convert to string using UTF8 encoding and parse value using InvariantCulture 
         /// if the underlying value type is byte array.</remarks>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
-        /// <exception cref="InvalidCastException">Failed to cast type on the null column value.</exception>
-        /// <exception cref="FormatException">The column value is not in an appropriate format.</exception>
+        /// <exception cref="ArgumentNullException">Failed to convert null value.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
         public double GetDouble(string columnName)
         {
-            return GetDouble(GetOrdinal(columnName));
+            return GetValueForCast(columnName, true).GetDouble();
         }
 
         /// <summary>
@@ -1130,7 +1032,7 @@ namespace Apskaita5.DAL.Common
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         public string GetString(string columnName)
         {
-            return GetString(GetOrdinal(columnName));
+            return GetValueForCast(columnName, false).GetString();
         }
 
         /// <summary>
@@ -1141,30 +1043,32 @@ namespace Apskaita5.DAL.Common
         /// Tries to convert to string using UTF8 encoding and parse value using InvariantCulture 
         /// if the underlying value type is byte array.</remarks>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
-        /// <exception cref="InvalidCastException">Failed to cast type on the null column value.</exception>
-        /// <exception cref="FormatException">The column value is not in an appropriate format.</exception>
+        /// <exception cref="ArgumentNullException">Failed to convert null value.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
         public decimal GetDecimal(string columnName)
         {
-
-            return GetDecimal(GetOrdinal(columnName));
+            return GetValueForCast(columnName, true).GetDecimal();
         }
 
         /// <summary>
         /// Gets the data stored in the column specified as DateTime.
         /// </summary>
         /// <param name="columnName">A name of the column.</param>
-        /// <remarks>Tries to parse the value using either formats specified by 
+        /// <remarks>Tries to parse the value using either default formats or formats specified by 
         /// <see cref="LightDataTable.DateTimeFormats">parent table</see>
-        /// or <see cref="LightDataTable.GetDefaultDateTimeFormats">default formats</see>
         /// if the underlying value type is string. 
         /// Tries to convert to string using UTF8 encoding and parse the string 
         /// if the underlying value type is byte array.
         /// Tries to cast to DateTime in other cases.</remarks>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
-        /// <exception cref="InvalidCastException">Failed to cast type on the null column value.</exception>
+        /// <exception cref="ArgumentNullException">Failed to convert null value.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
         public DateTime GetDateTime(string columnName)
         {
-            return GetDateTime(GetOrdinal(columnName));
+            if (_table.DateTimeFormats.IsNull() || _table.DateTimeFormats.Count < 1)
+            { return GetValueForCast(columnName, true).GetDateTime(); }
+            else
+            { return GetValueForCast(columnName, true).GetDateTime(_table.DateTimeFormats.ToArray()); }
         }
 
         /// <summary>
@@ -1174,10 +1078,11 @@ namespace Apskaita5.DAL.Common
         /// <remarks>Uses <see cref="GetDateTime">GetDateTime</see> method to get a DateTime
         /// value and initializes a DateTimeOffset value with it.</remarks>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
-        /// <exception cref="InvalidCastException">Failed to cast type on the null column value.</exception>
+        /// <exception cref="ArgumentNullException">Failed to convert null value.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
         public DateTimeOffset GetDateTimeOffset(string columnName)
         {
-            return GetDateTimeOffset(GetOrdinal(columnName));
+            return new DateTimeOffset(DateTime.SpecifyKind(GetDateTime(columnName), DateTimeKind.Utc));
         }
 
         /// <summary>
@@ -1186,10 +1091,10 @@ namespace Apskaita5.DAL.Common
         /// <param name="columnName">A name of the column.</param>
         /// <remarks>Returns null if the underlying value is null.</remarks>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
-        /// <exception cref="InvalidCastException">The column value is not a byte array.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
         public byte[] GetByteArray(string columnName)
         {
-            return GetByteArray(GetOrdinal(columnName));
+            return GetValueForCast(columnName, false).GetByteArray();
         }
 
         /// <summary>
@@ -1200,16 +1105,198 @@ namespace Apskaita5.DAL.Common
         /// <remarks>Does not support flags.
         /// Gets an enum value by converting int value (if it is int value) to the appropriate enum value
         /// or by parsing string value (if it is string value) to the appropriate enum value.</remarks>
-        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
-        /// <exception cref="InvalidCastException">Failed to cast type on the null column value.</exception>
-        /// <exception cref="FormatException">The column value is not in an appropriate format.</exception>
+        /// <exception cref="ArgumentNullException">Failed to convert null value.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format 
+        /// or string/int value is not defined for the enumeration.</exception>
         /// <exception cref="ArgumentException">Type T is not an enumeration.</exception>
-        /// <exception cref="InvalidCastException">Enum value for int code is not defined.</exception>
         public T GetEnum<T>(string columnName)
         {
-            return GetEnum<T>(GetOrdinal(columnName));
+            return GetValueForCast(columnName, true).GetEnum<T>();
         }
 
+        /// <summary>
+        /// Gets the data stored in the column specified as boolean.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <remarks>If the underlying value type is numeric, returns "!= 0".
+        /// If the underlying value type is string, tries to parse value as "true" or "false"
+        /// or to parse Int64 value using InvariantCulture and do "!= 0" conversion. 
+        /// if the underlying value type is byte[], tries to convert to string using UTF8 encoding 
+        /// and parse the string.</remarks>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
+        public bool? GetNullableBoolean(string columnName)
+        {
+            return GetValueForCast(columnName, true).GetBooleanNullable();
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as byte.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <remarks>Does checked conversions if the underlying value type is sbyte. 
+        /// (narrowing conversion from int types does not make sense for byte)
+        /// Tries to parse value using InvariantCulture if the underlying value type is string.
+        /// Tries to convert to string using UTF8 encoding and parse value using InvariantCulture 
+        /// if the underlying value type is byte array.</remarks>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
+        public byte? GetByteNullable(string columnName)
+        {
+            return GetValueForCast(columnName, true).GetByteNullable();
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as sbyte.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <remarks>Only returns a sbyte value if the underlying value type is sbyte.</remarks>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
+        public sbyte? GetSByteNullable(string columnName)
+        {
+            return GetValueForCast(columnName, true).GetSByteNullable();
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as char.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <remarks>Returns the first char (after Trim) if the underlying value type is string.
+        /// Tries to convert to string using UTF8 encoding and to return the first char (after Trim)
+        /// if the underlying value type is byte array.</remarks>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
+        public char? GetCharNullable(string columnName)
+        {
+            return GetValueForCast(columnName, true).GetCharNullable();
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as Guid.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <remarks>Tries to parse value if the underlying value type is string or 16 byte array.
+        /// Tries to convert to string using UTF8 encoding and parse the string 
+        /// if the underlying value type is byte array and it's size is not 16.</remarks>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
+        public Guid? GetGuidNullable(string columnName)
+        {
+            return GetValueForCast(columnName, false).GetGuidNullable();
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as Int16.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <remarks>Does checked conversions if the underlying value type is numeric or decimal.
+        /// Tries to parse value using InvariantCulture if the underlying value type is string.
+        /// Tries to convert to string using UTF8 encoding and parse value using InvariantCulture 
+        /// if the underlying value type is byte array.</remarks>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
+        public short? GetInt16Nullable(string columnName)
+        {
+            return GetValueForCast(columnName, true).GetInt16Nullable();
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as Int32.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <remarks>Does checked conversions if the underlying value type is numeric or decimal.
+        /// Tries to parse value using InvariantCulture if the underlying value type is string.
+        /// Tries to convert to string using UTF8 encoding and parse value using InvariantCulture 
+        /// if the underlying value type is byte array.</remarks>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
+        public int? GetInt32Nullable(string columnName)
+        {
+            return GetValueForCast(columnName, true).GetInt32Nullable();
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as Int64.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <remarks>Does checked conversions if the underlying value type is numeric or decimal.
+        /// Tries to parse value using InvariantCulture if the underlying value type is string.
+        /// Tries to convert to string using UTF8 encoding and parse value using InvariantCulture 
+        /// if the underlying value type is byte array.</remarks>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
+        public long? GetInt64Nullable(string columnName)
+        {
+            return GetValueForCast(columnName, true).GetInt64Nullable();
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as float.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <remarks>Tries to parse value using InvariantCulture if the underlying value type is string.
+        /// Tries to convert to string using UTF8 encoding and parse value using InvariantCulture 
+        /// if the underlying value type is byte array.</remarks>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
+        public float? GetFloatNullable(string columnName)
+        {
+            return GetValueForCast(columnName, true).GetFloatNullable();
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as double.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <remarks>Casts to double if the underlying value type is float.
+        /// Tries to parse value using InvariantCulture if the underlying value type is string.
+        /// Tries to convert to string using UTF8 encoding and parse value using InvariantCulture 
+        /// if the underlying value type is byte array.</remarks>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
+        public double? GetDoubleNullable(string columnName)
+        {
+            return GetValueForCast(columnName, true).GetDoubleNullable();
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as decimal.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <remarks>Tries to parse value using InvariantCulture if the underlying value type is string.
+        /// Tries to convert to string using UTF8 encoding and parse value using InvariantCulture 
+        /// if the underlying value type is byte array.</remarks>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
+        public decimal? GetDecimalNullable(string columnName)
+        {
+            return GetValueForCast(columnName, true).GetDecimalNullable();
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as DateTime.
+        /// </summary>
+        /// <param name="columnName">A name of the column.</param>
+        /// <remarks>Tries to parse the value using either default formats or formats specified by 
+        /// <see cref="LightDataTable.DateTimeFormats">parent table</see>
+        /// if the underlying value type is string. 
+        /// Tries to convert to string using UTF8 encoding and parse the string 
+        /// if the underlying value type is byte array.
+        /// Tries to cast to DateTime in other cases.</remarks>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
+        public DateTime? GetDateTimeNullable(string columnName)
+        {
+            if (_table.DateTimeFormats.IsNull() || _table.DateTimeFormats.Count < 1)
+            { return GetValueForCast(columnName, true).GetDateTimeNullable(); }
+            else
+            { return GetValueForCast(columnName, true).GetDateTimeNullable(_table.DateTimeFormats.ToArray()); }
+        }
+
+        #endregion
+
+        #region Try Get By Index
 
         /// <summary>
         /// Gets the data stored in the column specified as boolean.
@@ -1219,22 +1306,24 @@ namespace Apskaita5.DAL.Common
         /// <param name="result">When this method returns, contains the converted value equivalent 
         /// of the value contained in the column, if the conversion succeeded, or default value 
         /// if the conversion failed.</param>
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="GetBoolean">GetBoolean</see> method.</remarks>
-        public bool TryGetBoolean(int i, out bool result)
+        public bool TryGetBoolean(int i, out bool result, bool ignoreFormatException = false)
         {
-            CheckIndex(i);
+            var value = new bool?();
             try
             {
-                result = GetBoolean(i);
-                return true;
+                value = GetValueForCast(i, false).GetBooleanNullable();
             }
-            catch (Exception)
+            catch (FormatException)
             {
-                result = default(bool);
-                return false;
+                if (!ignoreFormatException) throw;
             }
-
+            result = value.GetValueOrDefault();
+            return value.HasValue;
         }
 
         /// <summary>
@@ -1245,21 +1334,24 @@ namespace Apskaita5.DAL.Common
         /// <param name="result">When this method returns, contains the converted value equivalent 
         /// of the value contained in the column, if the conversion succeeded, or default value 
         /// if the conversion failed.</param>
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="GetByte">GetByte</see> method.</remarks>
-        public bool TryGetByte(int i, out byte result)
+        public bool TryGetByte(int i, out byte result, bool ignoreFormatException = false)
         {
-            CheckIndex(i);
+            var value = new byte?();
             try
             {
-                result = GetByte(i);
-                return true;
+                value = GetValueForCast(i, false).GetByteNullable();
             }
-            catch (Exception)
+            catch (FormatException)
             {
-                result = default(byte);
-                return false;
+                if (!ignoreFormatException) throw;
             }
+            result = value.GetValueOrDefault();
+            return value.HasValue;
         }
 
         /// <summary>
@@ -1269,22 +1361,25 @@ namespace Apskaita5.DAL.Common
         /// <param name="i">The zero-based index of the column.</param>
         /// <param name="result">When this method returns, contains the converted value equivalent 
         /// of the value contained in the column, if the conversion succeeded, or default value 
-        /// if the conversion failed.</param>
+        /// if the conversion failed.</param> 
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="GetSByte">GetSByte</see> method.</remarks>
-        public bool TryGetSByte(int i, out sbyte result)
+        public bool TryGetSByte(int i, out sbyte result, bool ignoreFormatException = false)
         {
-            CheckIndex(i);
+            var value = new sbyte?();
             try
             {
-                result = GetSByte(i);
-                return true;
+                value = GetValueForCast(i, false).GetSByteNullable();
             }
-            catch (Exception)
+            catch (FormatException)
             {
-                result = default(sbyte);
-                return false;
+                if (!ignoreFormatException) throw;
             }
+            result = value.GetValueOrDefault();
+            return value.HasValue;
         }
 
         /// <summary>
@@ -1295,21 +1390,24 @@ namespace Apskaita5.DAL.Common
         /// <param name="result">When this method returns, contains the converted value equivalent 
         /// of the value contained in the column, if the conversion succeeded, or default value 
         /// if the conversion failed.</param>
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="GetChar">GetChar</see> method.</remarks>
-        public bool TryGetChar(int i, out char result)
+        public bool TryGetChar(int i, out char result, bool ignoreFormatException = false)
         {
-            CheckIndex(i);
+            var value = new char?();
             try
             {
-                result = GetChar(i);
-                return true;
+                value = GetValueForCast(i, false).GetCharNullable();
             }
-            catch (Exception)
+            catch (FormatException)
             {
-                result = default(char);
-                return false;
+                if (!ignoreFormatException) throw;
             }
+            result = value.GetValueOrDefault();
+            return value.HasValue;
         }
 
         /// <summary>
@@ -1319,23 +1417,25 @@ namespace Apskaita5.DAL.Common
         /// <param name="i">The zero-based index of the column.</param>
         /// <param name="result">When this method returns, contains the converted value equivalent 
         /// of the value contained in the column, if the conversion succeeded, or Guid.Empty 
-        /// if the conversion failed.</param>
+        /// if the conversion failed.</param>   
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="GetGuid">GetGuid</see> method.</remarks>
-        public bool TryGetGuid(int i, out Guid result)
+        public bool TryGetGuid(int i, out Guid result, bool ignoreFormatException = false)
         {
-            CheckIndex(i);
+            var value = new Guid?();
             try
             {
-                result = GetGuid(i);
-                return true;
+                value = GetValueForCast(i, false).GetGuidNullable();
             }
-            catch (Exception)
+            catch (FormatException)
             {
-                result = Guid.Empty;
-                return false;
+                if (!ignoreFormatException) throw;
             }
-
+            result = value.GetValueOrDefault();
+            return value.HasValue;
         }
 
         /// <summary>
@@ -1345,23 +1445,25 @@ namespace Apskaita5.DAL.Common
         /// <param name="i">The zero-based index of the column.</param>
         /// <param name="result">When this method returns, contains the converted value equivalent 
         /// of the value contained in the column, if the conversion succeeded, or default value 
-        /// if the conversion failed.</param>
+        /// if the conversion failed.</param>  
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="GetInt16">GetInt16</see> method.</remarks>
-        public bool TryGetInt16(int i, out short result)
+        public bool TryGetInt16(int i, out short result, bool ignoreFormatException = false)
         {
-            CheckIndex(i);
+            var value = new short?();
             try
             {
-                result = GetInt16(i);
-                return true;
+                value = GetValueForCast(i, false).GetInt16Nullable();
             }
-            catch (Exception)
+            catch (FormatException)
             {
-                result = default(Int16);
-                return false;
+                if (!ignoreFormatException) throw;
             }
-
+            result = value.GetValueOrDefault();
+            return value.HasValue;
         }
 
         /// <summary>
@@ -1371,23 +1473,25 @@ namespace Apskaita5.DAL.Common
         /// <param name="i">The zero-based index of the column.</param>
         /// <param name="result">When this method returns, contains the converted value equivalent 
         /// of the value contained in the column, if the conversion succeeded, or default value 
-        /// if the conversion failed.</param>
+        /// if the conversion failed.</param>    
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="GetInt32">GetInt32</see> method.</remarks>
-        public bool TryGetInt32(int i, out int result)
+        public bool TryGetInt32(int i, out int result, bool ignoreFormatException = false)
         {
-            CheckIndex(i);
+            var value = new int?();
             try
             {
-                result = GetInt32(i);
-                return true;
+                value = GetValueForCast(i, false).GetInt32Nullable();
             }
-            catch (Exception)
+            catch (FormatException)
             {
-                result = default(int);
-                return false;
+                if (!ignoreFormatException) throw;
             }
-
+            result = value.GetValueOrDefault();
+            return value.HasValue;
         }
 
         /// <summary>
@@ -1397,23 +1501,25 @@ namespace Apskaita5.DAL.Common
         /// <param name="i">The zero-based index of the column.</param>
         /// <param name="result">When this method returns, contains the converted value equivalent 
         /// of the value contained in the column, if the conversion succeeded, or default value 
-        /// if the conversion failed.</param>
+        /// if the conversion failed.</param> 
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="GetInt64">GetInt64</see> method.</remarks>
-        public bool TryGetInt64(int i, out Int64 result)
+        public bool TryGetInt64(int i, out Int64 result, bool ignoreFormatException = false)
         {
-            CheckIndex(i);
+            var value = new Int64?();
             try
             {
-                result = GetInt64(i);
-                return true;
+                value = GetValueForCast(i, false).GetInt64Nullable();
             }
-            catch (Exception)
+            catch (FormatException)
             {
-                result = default(Int64);
-                return false;
+                if (!ignoreFormatException) throw;
             }
-
+            result = value.GetValueOrDefault();
+            return value.HasValue;
         }
 
         /// <summary>
@@ -1423,22 +1529,25 @@ namespace Apskaita5.DAL.Common
         /// <param name="i">The zero-based index of the column.</param>
         /// <param name="result">When this method returns, contains the converted value equivalent 
         /// of the value contained in the column, if the conversion succeeded, or default value 
-        /// if the conversion failed.</param>
+        /// if the conversion failed.</param>  
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="GetFloat">GetFloat</see> method.</remarks>
-        public bool TryGetFloat(int i, out float result)
+        public bool TryGetFloat(int i, out float result, bool ignoreFormatException = false)
         {
-            CheckIndex(i);
+            var value = new float?();
             try
             {
-                result = GetFloat(i);
-                return true;
+                value = GetValueForCast(i, false).GetFloatNullable();
             }
-            catch (Exception)
+            catch (FormatException)
             {
-                result = default(float);
-                return false;
+                if (!ignoreFormatException) throw;
             }
+            result = value.GetValueOrDefault();
+            return value.HasValue;
         }
 
         /// <summary>
@@ -1448,49 +1557,25 @@ namespace Apskaita5.DAL.Common
         /// <param name="i">The zero-based index of the column.</param>
         /// <param name="result">When this method returns, contains the converted value equivalent 
         /// of the value contained in the column, if the conversion succeeded, or default value 
-        /// if the conversion failed.</param>
+        /// if the conversion failed.</param>  
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="GetDouble">GetDouble</see> method.</remarks>
-        public bool TryGetDouble(int i, out double result)
+        public bool TryGetDouble(int i, out double result, bool ignoreFormatException = false)
         {
-            CheckIndex(i);
+            var value = new double?();
             try
             {
-                result = GetDouble(i);
-                return true;
+                value = GetValueForCast(i, false).GetDoubleNullable();
             }
-            catch (Exception)
+            catch (FormatException)
             {
-                result = default(double);
-                return false;
+                if (!ignoreFormatException) throw;
             }
-
-        }
-
-        /// <summary>
-        /// Gets the data stored in the column specified as string.
-        /// A return value indicates whether the operation succeeded.
-        /// </summary>
-        /// <param name="i">The zero-based index of the column.</param>
-        /// <param name="result">When this method returns, contains the converted value equivalent 
-        /// of the value contained in the column, if the conversion succeeded, or default value 
-        /// if the conversion failed.</param>
-        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
-        /// <remarks>Uses <see cref="GetString">GetString</see> method.</remarks>
-        public bool TryGetString(int i, out string result)
-        {
-            CheckIndex(i);
-            try
-            {
-                result = GetString(i);
-                return true;
-            }
-            catch (Exception)
-            {
-                result = default(string);
-                return false;
-            }
-
+            result = value.GetValueOrDefault();
+            return value.HasValue;
         }
 
         /// <summary>
@@ -1500,23 +1585,25 @@ namespace Apskaita5.DAL.Common
         /// <param name="i">The zero-based index of the column.</param>
         /// <param name="result">When this method returns, contains the converted value equivalent 
         /// of the value contained in the column, if the conversion succeeded, or default value 
-        /// if the conversion failed.</param>
+        /// if the conversion failed.</param>    
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="GetDecimal">GetDecimal</see> method.</remarks>
-        public bool TryGetDecimal(int i, out decimal result)
+        public bool TryGetDecimal(int i, out decimal result, bool ignoreFormatException = false)
         {
-            CheckIndex(i);
+            var value = new decimal?();
             try
             {
-                result = GetDecimal(i);
-                return true;
+                value = GetValueForCast(i, false).GetDecimalNullable();
             }
-            catch (Exception)
+            catch (FormatException)
             {
-                result = default(decimal);
-                return false;
+                if (!ignoreFormatException) throw;
             }
-
+            result = value.GetValueOrDefault();
+            return value.HasValue;
         }
 
         /// <summary>
@@ -1526,23 +1613,28 @@ namespace Apskaita5.DAL.Common
         /// <param name="i">The zero-based index of the column.</param>
         /// <param name="result">When this method returns, contains the converted value equivalent 
         /// of the value contained in the column, if the conversion succeeded, or default value 
-        /// if the conversion failed.</param>
+        /// if the conversion failed.</param> 
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="GetDateTime">GetDateTime</see> method.</remarks>
-        public bool TryGetDateTime(int i, out DateTime result)
+        public bool TryGetDateTime(int i, out DateTime result, bool ignoreFormatException = false)
         {
-            CheckIndex(i);
+            var value = new DateTime?();
             try
             {
-                result = GetDateTime(i);
-                return true;
+                if (_table.DateTimeFormats.IsNull() || _table.DateTimeFormats.Count < 1)
+                { value= GetValueForCast(i, false).GetDateTimeNullable(); }
+                else
+                { value = GetValueForCast(i, false).GetDateTimeNullable(_table.DateTimeFormats.ToArray()); }
             }
-            catch (Exception)
+            catch (FormatException)
             {
-                result = default(DateTime);
-                return false;
+                if (!ignoreFormatException) throw;
             }
-
+            result = value.GetValueOrDefault();
+            return value.HasValue;
         }
 
         /// <summary>
@@ -1553,21 +1645,27 @@ namespace Apskaita5.DAL.Common
         /// <param name="result">When this method returns, contains the converted value equivalent 
         /// of the value contained in the column, if the conversion succeeded, or default value 
         /// if the conversion failed.</param>
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="GetDateTimeOffset">GetDateTimeOffset</see> method.</remarks>
-        public bool TryGetDateTimeOffset(int i, out DateTimeOffset result)
+        public bool TryGetDateTimeOffset(int i, out DateTimeOffset result, bool ignoreFormatException = false)
         {
-            CheckIndex(i);
+            var value = new DateTime?();
             try
             {
-                result = GetDateTimeOffset(i);
-                return true;
+                if (_table.DateTimeFormats.IsNull() || _table.DateTimeFormats.Count < 1)
+                { value = GetValueForCast(i, false).GetDateTimeNullable(); }
+                else
+                { value = GetValueForCast(i, false).GetDateTimeNullable(_table.DateTimeFormats.ToArray()); }
             }
-            catch (Exception)
+            catch (FormatException)
             {
-                result = new DateTimeOffset(default(DateTime));
-                return false;
+                if (!ignoreFormatException) throw;
             }
+            result = new DateTimeOffset(value.GetValueOrDefault());
+            return value.HasValue;
         }
 
         /// <summary>
@@ -1577,22 +1675,27 @@ namespace Apskaita5.DAL.Common
         /// <param name="i">The zero-based index of the column.</param>
         /// <param name="result">When this method returns, contains the converted value equivalent 
         /// of the value contained in the column, if the conversion succeeded, or null 
-        /// if the conversion failed.</param>
+        /// if the conversion failed.</param>    
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="GetByteArray">GetByteArray</see> method.</remarks>
-        public bool TryGetByteArray(int i, out byte[] result)
+        public bool TryGetByteArray(int i, out byte[] result, bool ignoreFormatException = false)
         {
-            CheckIndex(i);
+            byte[] value = null;
             try
             {
-                result = GetByteArray(i);
-                return true;
+                value = GetValueForCast(i, false).GetByteArray();
             }
-            catch (Exception)
+            catch (FormatException)
             {
+                if (!ignoreFormatException) throw;
                 result = null;
                 return false;
             }
+            result = value;
+            return true;
         }
 
         /// <summary>
@@ -1603,29 +1706,39 @@ namespace Apskaita5.DAL.Common
         /// <param name="i">The zero-based index of the column.</param>
         /// <param name="result">When this method returns, contains the converted value equivalent 
         /// of the value contained in the column, if the conversion succeeded, or default value 
-        /// if the conversion failed.</param>
+        /// if the conversion failed.</param> 
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <exception cref="ArgumentException">Type T is not an enumeration.</exception>
         /// <remarks>Uses <see cref="GetEnum{T}">GetEnum</see> method.</remarks>
-        public bool TryGetEnum<T>(int i, out T result)
+        public bool TryGetEnum<T>(int i, out T result, bool ignoreFormatException = false)
         {
-            CheckIndex(i);
+            var rawValue = GetValueForCast(i, false);
 
-            if (!typeof(T).IsEnum)
-                throw new ArgumentException(string.Format(Properties.Resources.LightDataRow_ColumnValueIsNotEnumeration, typeof(T).FullName));
+            if (rawValue.IsNull())
+            {
+                result = default(T);
+                return false;
+            }
 
             try
             {
-                result = GetEnum<T>(i);
+                result = GetValueForCast(i, false).GetEnum<T>();
                 return true;
             }
-            catch (Exception)
+            catch (FormatException)
             {
+                if (!ignoreFormatException) throw;
                 result = default(T);
                 return false;
             }
         }
 
+        #endregion
+
+        #region Try Get By Column Name
 
         /// <summary>
         /// Gets the data stored in the column specified as boolean.
@@ -1634,12 +1747,25 @@ namespace Apskaita5.DAL.Common
         /// <param name="columnName">A name of the column.</param>
         /// <param name="result">When this method returns, contains the converted value equivalent 
         /// of the value contained in the column, if the conversion succeeded, or default value 
-        /// if the conversion failed.</param>
+        /// if the conversion failed.</param> 
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="GetBoolean">GetBoolean</see> method.</remarks>
-        public bool TryGetBoolean(string columnName, out bool result)
+        public bool TryGetBoolean(string columnName, out bool result, bool ignoreFormatException = false)
         {
-            return TryGetBoolean(GetOrdinal(columnName), out result);
+            var value = new bool?();
+            try
+            {
+                value = GetValueForCast(columnName, false).GetBooleanNullable();
+            }
+            catch (FormatException)
+            {
+                if (!ignoreFormatException) throw;
+            }
+            result = value.GetValueOrDefault();
+            return value.HasValue;
         }
 
         /// <summary>
@@ -1650,11 +1776,24 @@ namespace Apskaita5.DAL.Common
         /// <param name="result">When this method returns, contains the converted value equivalent 
         /// of the value contained in the column, if the conversion succeeded, or default value 
         /// if the conversion failed.</param>
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="GetByte">GetByte</see> method.</remarks>
-        public bool TryGetByte(string columnName, out byte result)
+        public bool TryGetByte(string columnName, out byte result, bool ignoreFormatException = false)
         {
-            return TryGetByte(GetOrdinal(columnName), out result);
+            var value = new byte?();
+            try
+            {
+                value = GetValueForCast(columnName, false).GetByteNullable();
+            }
+            catch (FormatException)
+            {
+                if (!ignoreFormatException) throw;
+            }
+            result = value.GetValueOrDefault();
+            return value.HasValue;
         }
 
         /// <summary>
@@ -1664,12 +1803,25 @@ namespace Apskaita5.DAL.Common
         /// <param name="columnName">A name of the column.</param>
         /// <param name="result">When this method returns, contains the converted value equivalent 
         /// of the value contained in the column, if the conversion succeeded, or default value 
-        /// if the conversion failed.</param>
+        /// if the conversion failed.</param>      
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="GetSByte">GetSByte</see> method.</remarks>
-        public bool TryGetSByte(string columnName, out sbyte result)
+        public bool TryGetSByte(string columnName, out sbyte result, bool ignoreFormatException = false)
         {
-            return TryGetSByte(GetOrdinal(columnName), out result);
+            var value = new sbyte?();
+            try
+            {
+                value = GetValueForCast(columnName, false).GetSByteNullable();
+            }
+            catch (FormatException)
+            {
+                if (!ignoreFormatException) throw;
+            }
+            result = value.GetValueOrDefault();
+            return value.HasValue;
         }
 
         /// <summary>
@@ -1679,12 +1831,25 @@ namespace Apskaita5.DAL.Common
         /// <param name="columnName">A name of the column.</param>
         /// <param name="result">When this method returns, contains the converted value equivalent 
         /// of the value contained in the column, if the conversion succeeded, or default value 
-        /// if the conversion failed.</param>
+        /// if the conversion failed.</param> 
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="GetChar">GetChar</see> method.</remarks>
-        public bool TryGetChar(string columnName, out char result)
+        public bool TryGetChar(string columnName, out char result, bool ignoreFormatException = false)
         {
-            return TryGetChar(GetOrdinal(columnName), out result);
+            var value = new char?();
+            try
+            {
+                value = GetValueForCast(columnName, false).GetCharNullable();
+            }
+            catch (FormatException)
+            {
+                if (!ignoreFormatException) throw;
+            }
+            result = value.GetValueOrDefault();
+            return value.HasValue;
         }
 
         /// <summary>
@@ -1694,12 +1859,25 @@ namespace Apskaita5.DAL.Common
         /// <param name="columnName">A name of the column.</param>
         /// <param name="result">When this method returns, contains the converted value equivalent 
         /// of the value contained in the column, if the conversion succeeded, or Guid.Empty 
-        /// if the conversion failed.</param>
+        /// if the conversion failed.</param> 
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="GetGuid">GetGuid</see> method.</remarks>
-        public bool TryGetGuid(string columnName, out Guid result)
+        public bool TryGetGuid(string columnName, out Guid result, bool ignoreFormatException = false)
         {
-            return TryGetGuid(GetOrdinal(columnName), out result);
+            var value = new Guid?();
+            try
+            {
+                value = GetValueForCast(columnName, false).GetGuidNullable();
+            }
+            catch (FormatException)
+            {
+                if (!ignoreFormatException) throw;
+            }
+            result = value.GetValueOrDefault();
+            return value.HasValue;
         }
 
         /// <summary>
@@ -1709,12 +1887,25 @@ namespace Apskaita5.DAL.Common
         /// <param name="columnName">A name of the column.</param>
         /// <param name="result">When this method returns, contains the converted value equivalent 
         /// of the value contained in the column, if the conversion succeeded, or default value 
-        /// if the conversion failed.</param>
+        /// if the conversion failed.</param> 
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="GetInt16">GetInt16</see> method.</remarks>
-        public bool TryGetInt16(string columnName, out short result)
+        public bool TryGetInt16(string columnName, out short result, bool ignoreFormatException = false)
         {
-            return TryGetInt16(GetOrdinal(columnName), out result);
+            var value = new short?();
+            try
+            {
+                value = GetValueForCast(columnName, false).GetInt16Nullable();
+            }
+            catch (FormatException)
+            {
+                if (!ignoreFormatException) throw;
+            }
+            result = value.GetValueOrDefault();
+            return value.HasValue;
         }
 
         /// <summary>
@@ -1724,12 +1915,25 @@ namespace Apskaita5.DAL.Common
         /// <param name="columnName">A name of the column.</param>
         /// <param name="result">When this method returns, contains the converted value equivalent 
         /// of the value contained in the column, if the conversion succeeded, or default value 
-        /// if the conversion failed.</param>
+        /// if the conversion failed.</param> 
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="GetInt32">GetInt32</see> method.</remarks>
-        public bool TryGetInt32(string columnName, out int result)
+        public bool TryGetInt32(string columnName, out int result, bool ignoreFormatException = false)
         {
-            return TryGetInt32(GetOrdinal(columnName), out result);
+            var value = new int?();
+            try
+            {
+                value = GetValueForCast(columnName, false).GetInt32Nullable();
+            }
+            catch (FormatException)
+            {
+                if (!ignoreFormatException) throw;
+            }
+            result = value.GetValueOrDefault();
+            return value.HasValue;
         }
 
         /// <summary>
@@ -1739,12 +1943,25 @@ namespace Apskaita5.DAL.Common
         /// <param name="columnName">A name of the column.</param>
         /// <param name="result">When this method returns, contains the converted value equivalent 
         /// of the value contained in the column, if the conversion succeeded, or default value 
-        /// if the conversion failed.</param>
+        /// if the conversion failed.</param>    
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="GetInt64">GetInt64</see> method.</remarks>
-        public bool TryGetInt64(string columnName, out Int64 result)
+        public bool TryGetInt64(string columnName, out Int64 result, bool ignoreFormatException = false)
         {
-            return TryGetInt64(GetOrdinal(columnName), out result);
+            var value = new Int64?();
+            try
+            {
+                value = GetValueForCast(columnName, false).GetInt64Nullable();
+            }
+            catch (FormatException)
+            {
+                if (!ignoreFormatException) throw;
+            }
+            result = value.GetValueOrDefault();
+            return value.HasValue;
         }
 
         /// <summary>
@@ -1754,12 +1971,25 @@ namespace Apskaita5.DAL.Common
         /// <param name="columnName">A name of the column.</param>
         /// <param name="result">When this method returns, contains the converted value equivalent 
         /// of the value contained in the column, if the conversion succeeded, or default value 
-        /// if the conversion failed.</param>
+        /// if the conversion failed.</param>  
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="GetFloat">GetFloat</see> method.</remarks>
-        public bool TryGetFloat(string columnName, out float result)
+        public bool TryGetFloat(string columnName, out float result, bool ignoreFormatException = false)
         {
-            return TryGetFloat(GetOrdinal(columnName), out result);
+            var value = new float?();
+            try
+            {
+                value = GetValueForCast(columnName, false).GetFloatNullable();
+            }
+            catch (FormatException)
+            {
+                if (!ignoreFormatException) throw;
+            }
+            result = value.GetValueOrDefault();
+            return value.HasValue;
         }
 
         /// <summary>
@@ -1769,27 +1999,25 @@ namespace Apskaita5.DAL.Common
         /// <param name="columnName">A name of the column.</param>
         /// <param name="result">When this method returns, contains the converted value equivalent 
         /// of the value contained in the column, if the conversion succeeded, or default value 
-        /// if the conversion failed.</param>
+        /// if the conversion failed.</param>  
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="GetDouble">GetDouble</see> method.</remarks>
-        public bool TryGetDouble(string columnName, out double result)
+        public bool TryGetDouble(string columnName, out double result, bool ignoreFormatException = false)
         {
-            return TryGetDouble(GetOrdinal(columnName), out result);
-        }
-
-        /// <summary>
-        /// Gets the data stored in the column specified as string.
-        /// A return value indicates whether the operation succeeded.
-        /// </summary>
-        /// <param name="columnName">A name of the column.</param>
-        /// <param name="result">When this method returns, contains the converted value equivalent 
-        /// of the value contained in the column, if the conversion succeeded, or default value 
-        /// if the conversion failed.</param>
-        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
-        /// <remarks>Uses <see cref="GetString">GetString</see> method.</remarks>
-        public bool TryGetString(string columnName, out string result)
-        {
-            return TryGetString(GetOrdinal(columnName), out result);
+            var value = new double?();
+            try
+            {
+                value = GetValueForCast(columnName, false).GetDoubleNullable();
+            }
+            catch (FormatException)
+            {
+                if (!ignoreFormatException) throw;
+            }
+            result = value.GetValueOrDefault();
+            return value.HasValue;
         }
 
         /// <summary>
@@ -1799,12 +2027,25 @@ namespace Apskaita5.DAL.Common
         /// <param name="columnName">A name of the column.</param>
         /// <param name="result">When this method returns, contains the converted value equivalent 
         /// of the value contained in the column, if the conversion succeeded, or default value 
-        /// if the conversion failed.</param>
+        /// if the conversion failed.</param>  
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="GetDecimal">GetDecimal</see> method.</remarks>
-        public bool TryGetDecimal(string columnName, out decimal result)
+        public bool TryGetDecimal(string columnName, out decimal result, bool ignoreFormatException = false)
         {
-            return TryGetDecimal(GetOrdinal(columnName), out result);
+            var value = new decimal?();
+            try
+            {
+                value = GetValueForCast(columnName, false).GetDecimalNullable();
+            }
+            catch (FormatException)
+            {
+                if (!ignoreFormatException) throw;
+            }
+            result = value.GetValueOrDefault();
+            return value.HasValue;
         }
 
         /// <summary>
@@ -1814,12 +2055,28 @@ namespace Apskaita5.DAL.Common
         /// <param name="columnName">A name of the column.</param>
         /// <param name="result">When this method returns, contains the converted value equivalent 
         /// of the value contained in the column, if the conversion succeeded, or default value 
-        /// if the conversion failed.</param>
+        /// if the conversion failed.</param> 
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="GetDateTime">GetDateTime</see> method.</remarks>
-        public bool TryGetDateTime(string columnName, out DateTime result)
+        public bool TryGetDateTime(string columnName, out DateTime result, bool ignoreFormatException = false)
         {
-            return TryGetDateTime(GetOrdinal(columnName), out result);
+            var value = new DateTime?();
+            try
+            {
+                if (_table.DateTimeFormats.IsNull() || _table.DateTimeFormats.Count < 1)
+                { value = GetValueForCast(columnName, false).GetDateTimeNullable(); }
+                else
+                { value = GetValueForCast(columnName, false).GetDateTimeNullable(_table.DateTimeFormats.ToArray()); }
+            }
+            catch (FormatException)
+            {
+                if (!ignoreFormatException) throw;
+            }
+            result = value.GetValueOrDefault();
+            return value.HasValue;
         }
 
         /// <summary>
@@ -1830,11 +2087,27 @@ namespace Apskaita5.DAL.Common
         /// <param name="result">When this method returns, contains the converted value equivalent 
         /// of the value contained in the column, if the conversion succeeded, or default value 
         /// if the conversion failed.</param>
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="GetDateTimeOffset">GetDateTimeOffset</see> method.</remarks>
-        public bool TryGetDateTimeOffset(string columnName, out DateTimeOffset result)
+        public bool TryGetDateTimeOffset(string columnName, out DateTimeOffset result, bool ignoreFormatException = false)
         {
-            return TryGetDateTimeOffset(GetOrdinal(columnName), out result);
+            var value = new DateTime?();
+            try
+            {
+                if (_table.DateTimeFormats.IsNull() || _table.DateTimeFormats.Count < 1)
+                { value = GetValueForCast(columnName, false).GetDateTimeNullable(); }
+                else
+                { value = GetValueForCast(columnName, false).GetDateTimeNullable(_table.DateTimeFormats.ToArray()); }
+            }
+            catch (FormatException)
+            {
+                if (!ignoreFormatException) throw;
+            }
+            result = new DateTimeOffset(value.GetValueOrDefault());
+            return value.HasValue;
         }
 
         /// <summary>
@@ -1845,11 +2118,26 @@ namespace Apskaita5.DAL.Common
         /// <param name="result">When this method returns, contains the converted value equivalent 
         /// of the value contained in the column, if the conversion succeeded, or null 
         /// if the conversion failed.</param>
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="GetByteArray">GetByteArray</see> method.</remarks>
-        public bool TryGetByteArray(string columnName, out byte[] result)
+        public bool TryGetByteArray(string columnName, out byte[] result, bool ignoreFormatException = false)
         {
-            return TryGetByteArray(GetOrdinal(columnName), out result);
+            byte[] value = null;
+            try
+            {
+                value = GetValueForCast(columnName, false).GetByteArray();
+            }
+            catch (FormatException)
+            {
+                if (!ignoreFormatException) throw;
+                result = null;
+                return false;
+            }
+            result = value;
+            return true;
         }
 
         /// <summary>
@@ -1860,27 +2148,54 @@ namespace Apskaita5.DAL.Common
         /// <param name="columnName">A name of the column.</param>
         /// <param name="result">When this method returns, contains the converted value equivalent 
         /// of the value contained in the column, if the conversion succeeded, or default value 
-        /// if the conversion failed.</param>
+        /// if the conversion failed.</param>    
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <exception cref="ArgumentException">Type T is not an enumeration.</exception>
         /// <remarks>Uses <see cref="GetEnum{T}">GetEnum</see> method.</remarks>
-        public bool TryGetEnum<T>(string columnName, out T result)
+        public bool TryGetEnum<T>(string columnName, out T result, bool ignoreFormatException = false)
         {
-            return TryGetEnum<T>(GetOrdinal(columnName), out result);
+            var rawValue = GetValueForCast(columnName, false);
+
+            if (rawValue.IsNull())
+            {
+                result = default(T);
+                return false;
+            }
+
+            try
+            {
+                result = GetValueForCast(columnName, false).GetEnum<T>();
+                return true;
+            }
+            catch (FormatException)
+            {
+                if (!ignoreFormatException) throw;
+                result = default(T);
+                return false;
+            }
         }
 
+        #endregion
 
+        #region Get Or Default By Index
 
         /// <summary>
         /// Gets the data stored in the column specified as boolean.
         /// If the conversion fails, returns defaultValue.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
-        /// <param name="defaultValue">The value to return if the conversion fails.</param>
+        /// <param name="defaultValue">The value to return if the conversion fails.</param> 
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param> 
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="TryGetBoolean">TryGetBoolean</see> method.</remarks>
-        public bool GetBooleanOrDefault(int i, bool defaultValue)
+        public bool GetBooleanOrDefault(int i, bool defaultValue, bool ignoreFormatException = false)
         {
-            if (TryGetBoolean(i, out bool value)) return value;
+            if (TryGetBoolean(i, out bool value, ignoreFormatException)) return value;
             return defaultValue;
         }
 
@@ -1889,11 +2204,15 @@ namespace Apskaita5.DAL.Common
         /// If the conversion fails, returns defaultValue.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
-        /// <param name="defaultValue">The value to return if the conversion fails.</param>
+        /// <param name="defaultValue">The value to return if the conversion fails.</param> 
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>  
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="TryGetByte">TryGetByte</see> method.</remarks>
-        public byte GetByteOrDefault(int i, byte defaultValue)
+        public byte GetByteOrDefault(int i, byte defaultValue, bool ignoreFormatException = false)
         {
-            if (TryGetByte(i, out byte value)) return value;
+            if (TryGetByte(i, out byte value, ignoreFormatException)) return value;
             return defaultValue;
         }
 
@@ -1902,11 +2221,15 @@ namespace Apskaita5.DAL.Common
         /// If the conversion fails, returns defaultValue.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
-        /// <param name="defaultValue">The value to return if the conversion fails.</param>
+        /// <param name="defaultValue">The value to return if the conversion fails.</param> 
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>        
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="TryGetSByte">TryGetSByte</see> method.</remarks>
-        public sbyte GetSByteOrDefault(int i, sbyte defaultValue)
+        public sbyte GetSByteOrDefault(int i, sbyte defaultValue, bool ignoreFormatException = false)
         {
-            if (TryGetSByte(i, out sbyte value)) return value;
+            if (TryGetSByte(i, out sbyte value, ignoreFormatException)) return value;
             return defaultValue;
         }
 
@@ -1916,10 +2239,14 @@ namespace Apskaita5.DAL.Common
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
         /// <param name="defaultValue">The value to return if the conversion fails.</param>
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param> 
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="TryGetChar">TryGetChar</see> method.</remarks>
-        public char GetCharOrDefault(int i, char defaultValue)
+        public char GetCharOrDefault(int i, char defaultValue, bool ignoreFormatException = false)
         {
-            if (TryGetChar(i, out char value)) return value;
+            if (TryGetChar(i, out char value, ignoreFormatException)) return value;
             return defaultValue;
         }
 
@@ -1928,11 +2255,15 @@ namespace Apskaita5.DAL.Common
         /// If the conversion fails, returns defaultValue.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
-        /// <param name="defaultValue">The value to return if the conversion fails.</param>
+        /// <param name="defaultValue">The value to return if the conversion fails.</param> 
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>    
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="TryGetGuid">TryGetGuid</see> method.</remarks>
-        public Guid GetGuidOrDefault(int i, Guid defaultValue)
+        public Guid GetGuidOrDefault(int i, Guid defaultValue, bool ignoreFormatException = false)
         {
-            if (TryGetGuid(i, out Guid value)) return value;
+            if (TryGetGuid(i, out Guid value, ignoreFormatException)) return value;
             return defaultValue;
         }
 
@@ -1942,10 +2273,14 @@ namespace Apskaita5.DAL.Common
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
         /// <param name="defaultValue">The value to return if the conversion fails.</param>
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>  
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="TryGetInt16">TryGetInt16</see> method.</remarks>
-        public short GetInt16OrDefault(int i, short defaultValue)
+        public short GetInt16OrDefault(int i, short defaultValue, bool ignoreFormatException = false)
         {
-            if (TryGetInt16(i, out short value)) return value;
+            if (TryGetInt16(i, out short value, ignoreFormatException)) return value;
             return defaultValue;
         }
 
@@ -1954,11 +2289,15 @@ namespace Apskaita5.DAL.Common
         /// If the conversion fails, returns defaultValue.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
-        /// <param name="defaultValue">The value to return if the conversion fails.</param>
+        /// <param name="defaultValue">The value to return if the conversion fails.</param>  
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="TryGetInt32">TryGetInt32</see> method.</remarks>
-        public int GetInt32OrDefault(int i, int defaultValue)
+        public int GetInt32OrDefault(int i, int defaultValue, bool ignoreFormatException = false)
         {
-            if (TryGetInt32(i, out int value)) return value;
+            if (TryGetInt32(i, out int value, ignoreFormatException)) return value;
             return defaultValue;
         }
 
@@ -1968,10 +2307,14 @@ namespace Apskaita5.DAL.Common
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
         /// <param name="defaultValue">The value to return if the conversion fails.</param>
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>     
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="TryGetInt64">TryGetInt64</see> method.</remarks>
-        public Int64 GetInt64OrDefault(int i, Int64 defaultValue)
+        public Int64 GetInt64OrDefault(int i, Int64 defaultValue, bool ignoreFormatException = false)
         {
-            if (TryGetInt64(i, out long value)) return value;
+            if (TryGetInt64(i, out long value, ignoreFormatException)) return value;
             return defaultValue;
         }
 
@@ -1981,10 +2324,14 @@ namespace Apskaita5.DAL.Common
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
         /// <param name="defaultValue">The value to return if the conversion fails.</param>
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param> 
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="TryGetFloat">TryGetFloat</see> method.</remarks>
-        public float GetFloatOrDefault(int i, float defaultValue)
+        public float GetFloatOrDefault(int i, float defaultValue, bool ignoreFormatException = false)
         {
-            if (TryGetFloat(i, out float value)) return value;
+            if (TryGetFloat(i, out float value, ignoreFormatException)) return value;
             return defaultValue;
         }
 
@@ -1993,11 +2340,15 @@ namespace Apskaita5.DAL.Common
         /// If the conversion fails, returns defaultValue.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
-        /// <param name="defaultValue">The value to return if the conversion fails.</param>
+        /// <param name="defaultValue">The value to return if the conversion fails.</param> 
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param> 
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="TryGetDouble">TryGetDouble</see> method.</remarks>
-        public double GetDoubleOrDefault(int i, double defaultValue)
+        public double GetDoubleOrDefault(int i, double defaultValue, bool ignoreFormatException = false)
         {
-            if (TryGetDouble(i, out double value)) return value;
+            if (TryGetDouble(i, out double value, ignoreFormatException)) return value;
             return defaultValue;
         }
 
@@ -2007,11 +2358,15 @@ namespace Apskaita5.DAL.Common
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
         /// <param name="defaultValue">The value to return if the conversion fails.</param>
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="TryGetString">TryGetString</see> method.</remarks>
         public string GetStringOrDefault(int i, string defaultValue)
         {
-            if (TryGetString(i, out string value)) return value;
-            return defaultValue;
+            var result = GetString(i);
+            return result.IsNullOrWhiteSpace() ? defaultValue : result;
         }
 
         /// <summary>
@@ -2019,11 +2374,15 @@ namespace Apskaita5.DAL.Common
         /// If the conversion fails, returns defaultValue.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>   
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="TryGetString">TryGetString</see> method.</remarks>
         public string GetStringOrDefault(int i)
         {
-            if (TryGetString(i, out string value)) return value;
-            return string.Empty;
+            var result = GetString(i);
+            return result ?? string.Empty;
         }
 
         /// <summary>
@@ -2031,11 +2390,15 @@ namespace Apskaita5.DAL.Common
         /// If the conversion fails, returns defaultValue.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
-        /// <param name="defaultValue">The value to return if the conversion fails.</param>
+        /// <param name="defaultValue">The value to return if the conversion fails.</param> 
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>   
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="TryGetDecimal">TryGetDecimal</see> method.</remarks>
-        public decimal GetDecimalOrDefault(int i, decimal defaultValue)
+        public decimal GetDecimalOrDefault(int i, decimal defaultValue, bool ignoreFormatException = false)
         {
-            if (TryGetDecimal(i, out decimal value)) return value;
+            if (TryGetDecimal(i, out decimal value, ignoreFormatException)) return value;
             return defaultValue;
         }
 
@@ -2044,11 +2407,15 @@ namespace Apskaita5.DAL.Common
         /// If the conversion fails, returns defaultValue.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
-        /// <param name="defaultValue">The value to return if the conversion fails.</param>
+        /// <param name="defaultValue">The value to return if the conversion fails.</param> 
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>     
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="TryGetDateTime">TryGetDateTime</see> method.</remarks>
-        public DateTime GetDateTimeOrDefault(int i, DateTime defaultValue)
+        public DateTime GetDateTimeOrDefault(int i, DateTime defaultValue, bool ignoreFormatException = false)
         {
-            if (TryGetDateTime(i, out DateTime value)) return value;
+            if (TryGetDateTime(i, out DateTime value, ignoreFormatException)) return value;
             return defaultValue;
         }
 
@@ -2057,11 +2424,15 @@ namespace Apskaita5.DAL.Common
         /// If the conversion fails, returns defaultValue.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
-        /// <param name="defaultValue">The value to return if the conversion fails.</param>
+        /// <param name="defaultValue">The value to return if the conversion fails.</param> 
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>     
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="TryGetDateTimeOffset">TryGetDateTimeOffset</see> method.</remarks>
-        public DateTimeOffset GetDateTimeOffsetOrDefault(int i, DateTimeOffset defaultValue)
+        public DateTimeOffset GetDateTimeOffsetOrDefault(int i, DateTimeOffset defaultValue, bool ignoreFormatException = false)
         {
-            if (TryGetDateTimeOffset(i, out DateTimeOffset value)) return value;
+            if (TryGetDateTimeOffset(i, out DateTimeOffset value, ignoreFormatException)) return value;
             return defaultValue;
         }
 
@@ -2070,11 +2441,15 @@ namespace Apskaita5.DAL.Common
         /// If the conversion fails, returns defaultValue.
         /// </summary>
         /// <param name="i">The zero-based index of the column.</param>
-        /// <param name="defaultValue">The value to return if the conversion fails.</param>
+        /// <param name="defaultValue">The value to return if the conversion fails.</param>  
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>   
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="TryGetByteArray">TryGetByteArray</see> method.</remarks>
-        public byte[] GetByteArrayOrDefault(int i, byte[] defaultValue)
+        public byte[] GetByteArrayOrDefault(int i, byte[] defaultValue, bool ignoreFormatException = false)
         {
-            if (TryGetByteArray(i, out byte[] value)) return value;
+            if (TryGetByteArray(i, out byte[] value, ignoreFormatException)) return value;
             return defaultValue;
         }
 
@@ -2084,25 +2459,37 @@ namespace Apskaita5.DAL.Common
         /// </summary>
         /// <typeparam name="T">The type of the enumeration.</typeparam>
         /// <param name="i">The zero-based index of the column.</param>
-        /// <param name="defaultValue">The value to return if the conversion fails.</param>
+        /// <param name="defaultValue">The value to return if the conversion fails.</param>  
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>         
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="TryGetEnum{T}">">TryGetEnum</see> method.</remarks>
-        public T GetEnumOrDefault<T>(int i, T defaultValue)
+        public T GetEnumOrDefault<T>(int i, T defaultValue, bool ignoreFormatException = false)
         {
-            if (TryGetEnum<T>(i, out T value)) return value;
+            if (TryGetEnum<T>(i, out T value, ignoreFormatException)) return value;
             return defaultValue;
         }
 
+        #endregion
 
+        #region Get Or Default By Column Name
+        
         /// <summary>
         /// Gets the data stored in the column specified as boolean.
         /// If the conversion fails, returns defaultValue.
         /// </summary>
         /// <param name="columnName">A name of the column.</param>
         /// <param name="defaultValue">The value to return if the conversion fails.</param>
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>    
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="TryGetBoolean">TryGetBoolean</see> method.</remarks>
-        public bool GetBooleanOrDefault(string columnName, bool defaultValue)
+        public bool GetBooleanOrDefault(string columnName, bool defaultValue, bool ignoreFormatException = false)
         {
-            return GetBooleanOrDefault(GetOrdinal(columnName), defaultValue);
+            if (TryGetBoolean(columnName, out bool value, ignoreFormatException)) return value;
+            return defaultValue;
         }
 
         /// <summary>
@@ -2110,11 +2497,16 @@ namespace Apskaita5.DAL.Common
         /// If the conversion fails, returns defaultValue.
         /// </summary>
         /// <param name="columnName">A name of the column.</param>
-        /// <param name="defaultValue">The value to return if the conversion fails.</param>
+        /// <param name="defaultValue">The value to return if the conversion fails.</param> 
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="TryGetByte">TryGetByte</see> method.</remarks>
-        public byte GetByteOrDefault(string columnName, byte defaultValue)
+        public byte GetByteOrDefault(string columnName, byte defaultValue, bool ignoreFormatException = false)
         {
-            return GetByteOrDefault(GetOrdinal(columnName), defaultValue);
+            if (TryGetByte(columnName, out byte value, ignoreFormatException)) return value;
+            return defaultValue;
         }
 
         /// <summary>
@@ -2122,11 +2514,16 @@ namespace Apskaita5.DAL.Common
         /// If the conversion fails, returns defaultValue.
         /// </summary>
         /// <param name="columnName">A name of the column.</param>
-        /// <param name="defaultValue">The value to return if the conversion fails.</param>
+        /// <param name="defaultValue">The value to return if the conversion fails.</param>  
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>   
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="TryGetSByte">TryGetSByte</see> method.</remarks>
-        public sbyte GetSByteOrDefault(string columnName, sbyte defaultValue)
+        public sbyte GetSByteOrDefault(string columnName, sbyte defaultValue, bool ignoreFormatException = false)
         {
-            return GetSByteOrDefault(GetOrdinal(columnName), defaultValue);
+            if (TryGetSByte(columnName, out sbyte value, ignoreFormatException)) return value;
+            return defaultValue;
         }
 
         /// <summary>
@@ -2134,11 +2531,16 @@ namespace Apskaita5.DAL.Common
         /// If the conversion fails, returns defaultValue.
         /// </summary>
         /// <param name="columnName">A name of the column.</param>
-        /// <param name="defaultValue">The value to return if the conversion fails.</param>
+        /// <param name="defaultValue">The value to return if the conversion fails.</param>  
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>  
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="TryGetChar">TryGetChar</see> method.</remarks>
-        public char GetCharOrDefault(string columnName, char defaultValue)
+        public char GetCharOrDefault(string columnName, char defaultValue, bool ignoreFormatException = false)
         {
-            return GetCharOrDefault(GetOrdinal(columnName), defaultValue);
+            if (TryGetChar(columnName, out char value, ignoreFormatException)) return value;
+            return defaultValue;
         }
 
         /// <summary>
@@ -2146,11 +2548,16 @@ namespace Apskaita5.DAL.Common
         /// If the conversion fails, returns defaultValue.
         /// </summary>
         /// <param name="columnName">A name of the column.</param>
-        /// <param name="defaultValue">The value to return if the conversion fails.</param>
+        /// <param name="defaultValue">The value to return if the conversion fails.</param>  
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>     
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="TryGetGuid">TryGetGuid</see> method.</remarks>
-        public Guid GetGuidOrDefault(string columnName, Guid defaultValue)
+        public Guid GetGuidOrDefault(string columnName, Guid defaultValue, bool ignoreFormatException = false)
         {
-            return GetGuidOrDefault(GetOrdinal(columnName), defaultValue);
+            if (TryGetGuid(columnName, out Guid value, ignoreFormatException)) return value;
+            return defaultValue;
         }
 
         /// <summary>
@@ -2158,11 +2565,16 @@ namespace Apskaita5.DAL.Common
         /// If the conversion fails, returns defaultValue.
         /// </summary>
         /// <param name="columnName">A name of the column.</param>
-        /// <param name="defaultValue">The value to return if the conversion fails.</param>
+        /// <param name="defaultValue">The value to return if the conversion fails.</param> 
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>   
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="TryGetInt16">TryGetInt16</see> method.</remarks>
-        public short GetInt16OrDefault(string columnName, short defaultValue)
+        public short GetInt16OrDefault(string columnName, short defaultValue, bool ignoreFormatException = false)
         {
-            return GetInt16OrDefault(GetOrdinal(columnName), defaultValue);
+            if (TryGetInt16(columnName, out short value, ignoreFormatException)) return value;
+            return defaultValue;
         }
 
         /// <summary>
@@ -2170,11 +2582,16 @@ namespace Apskaita5.DAL.Common
         /// If the conversion fails, returns defaultValue.
         /// </summary>
         /// <param name="columnName">A name of the column.</param>
-        /// <param name="defaultValue">The value to return if the conversion fails.</param>
+        /// <param name="defaultValue">The value to return if the conversion fails.</param> 
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>    
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="TryGetInt32">TryGetInt32</see> method.</remarks>
-        public int GetInt32OrDefault(string columnName, int defaultValue)
+        public int GetInt32OrDefault(string columnName, int defaultValue, bool ignoreFormatException = false)
         {
-            return GetInt32OrDefault(GetOrdinal(columnName), defaultValue);
+            if (TryGetInt32(columnName, out int value, ignoreFormatException)) return value;
+            return defaultValue;
         }
 
         /// <summary>
@@ -2182,11 +2599,16 @@ namespace Apskaita5.DAL.Common
         /// If the conversion fails, returns defaultValue.
         /// </summary>
         /// <param name="columnName">A name of the column.</param>
-        /// <param name="defaultValue">The value to return if the conversion fails.</param>
+        /// <param name="defaultValue">The value to return if the conversion fails.</param>  
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>   
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="TryGetInt64">TryGetInt64</see> method.</remarks>
-        public Int64 GetInt64OrDefault(string columnName, Int64 defaultValue)
+        public Int64 GetInt64OrDefault(string columnName, Int64 defaultValue, bool ignoreFormatException = false)
         {
-            return GetInt64OrDefault(GetOrdinal(columnName), defaultValue);
+            if (TryGetInt64(columnName, out long value, ignoreFormatException)) return value;
+            return defaultValue;
         }
 
         /// <summary>
@@ -2195,10 +2617,15 @@ namespace Apskaita5.DAL.Common
         /// </summary>
         /// <param name="columnName">A name of the column.</param>
         /// <param name="defaultValue">The value to return if the conversion fails.</param>
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>  
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="TryGetFloat">TryGetFloat</see> method.</remarks>
-        public float GetFloatOrDefault(string columnName, float defaultValue)
+        public float GetFloatOrDefault(string columnName, float defaultValue, bool ignoreFormatException = false)
         {
-            return GetFloatOrDefault(GetOrdinal(columnName), defaultValue);
+            if (TryGetFloat(columnName, out float value, ignoreFormatException)) return value;
+            return defaultValue;
         }
 
         /// <summary>
@@ -2206,11 +2633,16 @@ namespace Apskaita5.DAL.Common
         /// If the conversion fails, returns defaultValue.
         /// </summary>
         /// <param name="columnName">A name of the column.</param>
-        /// <param name="defaultValue">The value to return if the conversion fails.</param>
+        /// <param name="defaultValue">The value to return if the conversion fails.</param>   
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param> 
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="TryGetDouble">TryGetDouble</see> method.</remarks>
-        public double GetDoubleOrDefault(string columnName, double defaultValue)
+        public double GetDoubleOrDefault(string columnName, double defaultValue, bool ignoreFormatException = false)
         {
-            return GetDoubleOrDefault(GetOrdinal(columnName), defaultValue);
+            if (TryGetDouble(columnName, out double value, ignoreFormatException)) return value;
+            return defaultValue;
         }
 
         /// <summary>
@@ -2219,10 +2651,15 @@ namespace Apskaita5.DAL.Common
         /// </summary>
         /// <param name="columnName">A name of the column.</param>
         /// <param name="defaultValue">The value to return if the conversion fails.</param>
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>      
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="TryGetString">TryGetString</see> method.</remarks>
         public string GetStringOrDefault(string columnName, string defaultValue)
         {
-            return GetStringOrDefault(GetOrdinal(columnName), defaultValue);
+            var result = GetString(columnName);
+            return result.IsNullOrWhiteSpace() ? defaultValue : result;
         }
 
         /// <summary>
@@ -2230,10 +2667,15 @@ namespace Apskaita5.DAL.Common
         /// If the conversion fails, returns defaultValue.
         /// </summary>
         /// <param name="columnName">A name of the column.</param>
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="TryGetString">TryGetString</see> method.</remarks>
         public string GetStringOrDefault(string columnName)
         {
-            return GetStringOrDefault(GetOrdinal(columnName));
+            var result = GetString(columnName);
+            return result ?? string.Empty;
         }
 
         /// <summary>
@@ -2241,11 +2683,16 @@ namespace Apskaita5.DAL.Common
         /// If the conversion fails, returns defaultValue.
         /// </summary>
         /// <param name="columnName">A name of the column.</param>
-        /// <param name="defaultValue">The value to return if the conversion fails.</param>
+        /// <param name="defaultValue">The value to return if the conversion fails.</param> 
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param> 
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="TryGetDecimal">TryGetDecimal</see> method.</remarks>
-        public decimal GetDecimalOrDefault(string columnName, decimal defaultValue)
+        public decimal GetDecimalOrDefault(string columnName, decimal defaultValue, bool ignoreFormatException = false)
         {
-            return GetDecimalOrDefault(GetOrdinal(columnName), defaultValue);
+            if (TryGetDecimal(columnName, out decimal value, ignoreFormatException)) return value;
+            return defaultValue;
         }
 
         /// <summary>
@@ -2253,11 +2700,16 @@ namespace Apskaita5.DAL.Common
         /// If the conversion fails, returns defaultValue.
         /// </summary>
         /// <param name="columnName">A name of the column.</param>
-        /// <param name="defaultValue">The value to return if the conversion fails.</param>
+        /// <param name="defaultValue">The value to return if the conversion fails.</param> 
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param> 
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="TryGetDateTime">TryGetDateTime</see> method.</remarks>
-        public DateTime GetDateTimeOrDefault(string columnName, DateTime defaultValue)
+        public DateTime GetDateTimeOrDefault(string columnName, DateTime defaultValue, bool ignoreFormatException = false)
         {
-            return GetDateTimeOrDefault(GetOrdinal(columnName), defaultValue);
+            if (TryGetDateTime(columnName, out DateTime value, ignoreFormatException)) return value;
+            return defaultValue;
         }
 
         /// <summary>
@@ -2266,10 +2718,15 @@ namespace Apskaita5.DAL.Common
         /// </summary>
         /// <param name="columnName">A name of the column.</param>
         /// <param name="defaultValue">The value to return if the conversion fails.</param>
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>  
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="TryGetDateTimeOffset">TryGetDateTimeOffset</see> method.</remarks>
-        public DateTimeOffset GetDateTimeOffsetOrDefault(string columnName, DateTimeOffset defaultValue)
+        public DateTimeOffset GetDateTimeOffsetOrDefault(string columnName, DateTimeOffset defaultValue, bool ignoreFormatException = false)
         {
-            return GetDateTimeOffsetOrDefault(GetOrdinal(columnName), defaultValue);
+            if (TryGetDateTimeOffset(columnName, out DateTimeOffset value, ignoreFormatException)) return value;
+            return defaultValue;
         }
 
         /// <summary>
@@ -2277,11 +2734,16 @@ namespace Apskaita5.DAL.Common
         /// If the conversion fails, returns defaultValue.
         /// </summary>
         /// <param name="columnName">A name of the column.</param>
-        /// <param name="defaultValue">The value to return if the conversion fails.</param>
+        /// <param name="defaultValue">The value to return if the conversion fails.</param> 
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param> 
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="TryGetByteArray">TryGetByteArray</see> method.</remarks>
-        public byte[] GetByteArrayOrDefault(string columnName, byte[] defaultValue)
+        public byte[] GetByteArrayOrDefault(string columnName, byte[] defaultValue, bool ignoreFormatException = false)
         {
-            return GetByteArrayOrDefault(GetOrdinal(columnName), defaultValue);
+            if (TryGetByteArray(columnName, out byte[] value, ignoreFormatException)) return value;
+            return defaultValue;
         }
 
         /// <summary>
@@ -2291,85 +2753,35 @@ namespace Apskaita5.DAL.Common
         /// <typeparam name="T">The type of the enumeration.</typeparam>
         /// <param name="columnName">A name of the column.</param>
         /// <param name="defaultValue">The value to return if the conversion fails.</param>
+        /// <param name="ignoreFormatException">whether to ignore FormatException, i.e. when the
+        /// conversion fails not due to null values but due to incompartimble data formats, 
+        /// e.g. double instead of DateTime</param>    
+        /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <remarks>Uses <see cref="TryGetEnum{T}">">TryGetEnum</see> method.</remarks>
-        public T GetEnumOrDefault<T>(string columnName, T defaultValue)
+        public T GetEnumOrDefault<T>(string columnName, T defaultValue, bool ignoreFormatException = false)
         {
-            return GetEnumOrDefault<T>(GetOrdinal(columnName), defaultValue);
+            if (TryGetEnum<T>(columnName, out T value, ignoreFormatException)) return value;
+            return defaultValue;
         }
 
+        #endregion
 
         private object GetValueForCast(int i, bool throwOnNull)
         {
             CheckIndex(i);
-            if (throwOnNull && _data[i] == null)
+            if (throwOnNull && _data[i].IsNull())
                 throw new InvalidCastException(Properties.Resources.LightDataRow_CannotCastTypeOnNull);
             return _data[i];
         }
 
-        private bool TryReadString(byte[] source, out string result)
+        private object GetValueForCast(string columnName, bool throwOnNull)
         {
-            if (source == null || source.Length < 1)
-            {
-                result = string.Empty;
-                return false;
-            }
-            try
-            {
-                result = Encoding.UTF8.GetString(source);
-                return true;
-            }
-            catch (Exception)
-            {
-                result = string.Empty;
-                return false;
-            }
-        }
-
-        private bool TryReadString(object source, out string result)
-        {
-            if (source is string)
-            {
-                result = (string)source;
-                return true;
-            }
-            if (source is byte[]) return TryReadString((byte[])source, out result);
-            result = null;
-            return false;
-        }
-
-        private bool TryParseDateTime(string source, out DateTime result)
-        {
-            if (_table.DateTimeFormats == null || _table.DateTimeFormats.Count <1)
-            {
-                return TryParseDateTime(source, LightDataTable.GetDefaultDateTimeFormats(), out result);
-            }
-            return TryParseDateTime(source, _table.DateTimeFormats.ToArray(), out result);
-        }
-
-        private bool TryParseDateTime(string source, string[] formats, out DateTime result)
-        {
-
-            if (formats == null || formats.Length < 1)
-            {
-                result = DateTime.MinValue;
-                return false;
-            }
-
-            foreach (var format in formats)
-            {
-                try
-                {
-                    result = DateTime.ParseExact(source, format, CultureInfo.InvariantCulture, DateTimeStyles.None);
-                    return true;
-                }
-                // ReSharper disable EmptyGeneralCatchClause
-                catch (Exception) { }
-                // ReSharper restore EmptyGeneralCatchClause
-            }
-
-            result = DateTime.MinValue;
-            return false;
-
+            var index = GetOrdinal(columnName);
+            if (index < 0)
+                throw new Exception(string.Format(Properties.Resources.LightDataRow_ColumnDoesNotExist, columnName));
+            if (throwOnNull && _data[index].IsNull())
+                throw new InvalidCastException(Properties.Resources.LightDataRow_CannotCastTypeOnNull);
+            return _data[index];
         }
 
 #endregion
@@ -2383,7 +2795,7 @@ namespace Apskaita5.DAL.Common
         private static Object CloneValue(Object value)
         {
 
-            if (value == null || value == DBNull.Value)
+            if (value.IsNull())
                 return null;
 
             if (value.GetType().IsValueType)

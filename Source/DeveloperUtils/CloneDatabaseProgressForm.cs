@@ -1,7 +1,9 @@
 ﻿using System;
-using System.ComponentModel;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using Apskaita5.DAL.Common;
+using Apskaita5.DAL.Common.DbSchema;
 
 namespace DeveloperUtils
 {
@@ -11,7 +13,8 @@ namespace DeveloperUtils
         private SqlAgentBase _sourceAgent;
         private SqlAgentBase _targetAgent;
         private DbSchema _schema;
-        
+        private CancellationTokenSource cts = new CancellationTokenSource();
+
 
         public CloneDatabaseProgressForm(SqlAgentBase sourceAgent, SqlAgentBase targetAgent, DbSchema schema)
         {
@@ -22,50 +25,69 @@ namespace DeveloperUtils
         }
 
 
-        private void CloneDatabaseProgressForm_Load(object sender, EventArgs e)
+        private async void CloneDatabaseProgressForm_Load(object sender, EventArgs e)
         {
-            var param = new object[]{_sourceAgent, _targetAgent, _schema};
-            this.backgroundWorker1.RunWorkerAsync(param);
-        }
 
-        private void backgroundWorker1_DoWork(object sender, DoWorkEventArgs e)
-        {
-            var targetAgent = (SqlAgentBase) (((object[]) e.Argument)[1]);
-            var schema = (DbSchema) (((object[]) e.Argument)[2]);
-            _sourceAgent.CloneDatabase(_targetAgent.CurrentDatabase, _targetAgent, schema, this.backgroundWorker1);
-        }
+            this.progressLabel.Text = "Initializing...";
 
-        private void backgroundWorker1_ProgressChanged(object sender, ProgressChangedEventArgs e)
-        {
-            this.progressBar1.Value = e.ProgressPercentage;
-            this.progressLabel.Text = e.UserState.ToString();
-        }
+            var progress = new Progress<DbCloneProgressArgs>(ReportProgress);
 
-        private void backgroundWorker1_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
-        {
-            if (e.Error != null)
+            try
             {
-                MessageBox.Show(e.Error.Message, "", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                this.Close();
-                return;
+                var sourceManager = (SchemaManagerBase)_sourceAgent.GetDefaultSchemaManager();
+                var targetManager = (SchemaManagerBase)_targetAgent.GetDefaultSchemaManager();
+                await Task.Run(async () => await sourceManager.CloneDatabase(targetManager, _schema, progress, cts.Token));
             }
-            if (e.Cancelled)
+            catch (Exception ex)
             {
-                MessageBox.Show("Database cloning has been canceled by the user.", "", 
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(ex.Message, "Exception", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 this.Close();
-                return;
             }
-            MessageBox.Show("Database has been succesfully cloned.", "", MessageBoxButtons.OK,
-                            MessageBoxIcon.Information);
 
-            this.Close();
+            
+
         }
 
+        private void ReportProgress(DbCloneProgressArgs args)
+        {
+            if (args.CurrentStage == DbCloneProgressArgs.Stage.Canceled)
+            {
+                this.progressLabel.Text = "Database clone operation has been canceled by the user.";
+                MessageBox.Show("Database clone operation has been canceled by the user.", "Canceled", 
+                    MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
+                this.Close();
+            }
+            else if (args.CurrentStage == DbCloneProgressArgs.Stage.Completed)
+            {
+                this.progressLabel.Text = "Database clone operation has completed succesfully.";
+                MessageBox.Show("Database clone operation has completed succesfully.", "Completed",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                this.Close();
+            }
+            else if (args.CurrentStage == DbCloneProgressArgs.Stage.CopyingData)
+            {
+                this.progressLabel.Text = string.Format("Copying data for table {0}.", args.CurrentTable);
+            }
+            else if (args.CurrentStage == DbCloneProgressArgs.Stage.CreatingSchema)
+            {
+                this.progressLabel.Text = "Creating new schema...";
+            }
+            else if (args.CurrentStage == DbCloneProgressArgs.Stage.FetchingRowCount)
+            {
+                this.progressLabel.Text = "Fetching total row count...";
+            }
+            else
+            {
+                this.progressLabel.Text = "Fetching schema...";
+            }
+            this.progressBar1.Value = args.RowProgress;
+        }
+        
         private void cancelCloneButton_Click(object sender, EventArgs e)
         {
-            this.backgroundWorker1.CancelAsync();
+            cts.Cancel(); 
             this.cancelCloneButton.Enabled = false;
+            this.progressLabel.Text = "Canceling database clone operation...";
         }
 
     }

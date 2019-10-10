@@ -25,11 +25,6 @@ namespace DeveloperUtils
             get { return true; }
         }
 
-        public bool CanOpen
-        {
-            get { return true; }
-        }
-
         public bool CanCreate
         {
             get { return true; }
@@ -38,16 +33,6 @@ namespace DeveloperUtils
         public bool CanPaste
         {
             get { return true; }
-        }
-
-        public string DefaultExtension
-        {
-            get { return "xml"; }
-        }
-
-        public string DefaultExtensionDescription
-        {
-            get { return "XML Files"; }
         }
 
         public string CurrentFilePath
@@ -61,13 +46,29 @@ namespace DeveloperUtils
             InitializeComponent();
         }
 
+        public SqlDictionaryForm(SqlRepository repository, string filePath)
+        {
+            InitializeComponent();
+            _currentSource = repository;
+            _currentFilePath = filePath;
+        }
+
 
         private void SqlDictionaryForm_Load(object sender, EventArgs e)
         {
             this.sqlRepositoryDataGridView.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.DisplayedCellsExceptHeaders;
-            _currentSource = new SqlRepository();
+            if (_currentSource == null)
+            {
+                _currentSource = new SqlRepository();
+                this.Text = "New SQL Dictionary";
+            }
+            else
+            {
+                this.Text = "SQL Dictionary: " + _currentFilePath;
+            }
+            
             this.sqlRepositoryBindingSource.DataSource = _currentSource;
-            this.Text = "New SQL Dictionary";
+            
         }
 
 
@@ -104,7 +105,7 @@ namespace DeveloperUtils
                         var item = row.DataBoundItem as SqlRepositoryItem;
                         if (item != null)
                         {
-                            _currentSource.Remove(item);
+                            _currentSource.Items.Remove(item);
                         }
                     }
                     RefreshDataSource();
@@ -118,7 +119,7 @@ namespace DeveloperUtils
                 {
                     newItem.UsedByTypes = _currentNamespace + "." + _currentClass;
                 }
-                _currentSource.Add(newItem);
+                _currentSource.Items.Add(newItem);
                 RefreshDataSource();
                 this.sqlRepositoryDataGridView.FirstDisplayedScrollingRowIndex = 
                     this.sqlRepositoryDataGridView.RowCount - 1;
@@ -199,14 +200,14 @@ namespace DeveloperUtils
 
             if (_currentNamespace.IsNullOrWhiteSpace() || _currentClass.IsNullOrWhiteSpace())
             {
-                foreach (var item in _currentSource)
+                foreach (var item in _currentSource.Items)
                 {
                     item.Query = item.Query.Replace(this.replaceOldTextBox.Text, this.replaceNewTextBox.Text);
                 }
             }
             else
             {
-                var visibleItems = _currentSource.Where(item => item.UsedByTypes.IndexOf(
+                var visibleItems = _currentSource.Items.Where(item => item.UsedByTypes.IndexOf(
                     _currentNamespace + "." + _currentClass + ",", StringComparison.OrdinalIgnoreCase) > -1 
                     || item.UsedByTypes.Trim().EndsWith(_currentNamespace + "." + _currentClass, 
                     StringComparison.OrdinalIgnoreCase));
@@ -309,32 +310,6 @@ namespace DeveloperUtils
 
         }
 
-        public void Open(string filePath)
-        {
-
-            if (filePath.IsNullOrWhiteSpace()) return;
-
-            if (!SaveCurrentSource()) return;
-
-            var result = new SqlRepository();
-            try
-            {
-                result.LoadFile(filePath);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(ex.Message, "", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
-                return;
-            }
-
-            RebindDataSource(result);
-
-            _currentFilePath = filePath;
-
-            this.Text = "SQL Dictionary: " + _currentFilePath;
-
-        }
-
         public void Create()
         {
 
@@ -383,13 +358,13 @@ namespace DeveloperUtils
             if (_currentNamespace.IsNullOrWhiteSpace() || _currentClass.IsNullOrWhiteSpace())
             {
                 this.sqlRepositoryBindingSource.DataSource = null;
-                this.sqlRepositoryBindingSource.DataSource = _currentSource;
+                this.sqlRepositoryBindingSource.DataSource = _currentSource.Items;
                 this.sqlRepositoryBindingSource.ResetBindings(false);
             }
             else
             {
                 this.sqlRepositoryBindingSource.DataSource = null;
-                this.sqlRepositoryBindingSource.DataSource = _currentSource.Where(
+                this.sqlRepositoryBindingSource.DataSource = _currentSource.Items.Where(
                     item => item.UsedByTypes.IndexOf(_currentNamespace + "." + _currentClass + ",", 
                         StringComparison.OrdinalIgnoreCase) > -1 || item.UsedByTypes.Trim().
                         EndsWith(_currentNamespace + "." + _currentClass, StringComparison.OrdinalIgnoreCase));
@@ -402,7 +377,7 @@ namespace DeveloperUtils
         private bool SaveCurrentSource()
         {
 
-            if (_currentSource == null || _currentSource.Count < 1) return true;
+            if (_currentSource == null || _currentSource.Items.Count < 1) return true;
 
             var response = MessageBox.Show("Save the current file before closing?", "", 
                 MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
@@ -465,7 +440,7 @@ namespace DeveloperUtils
                 NamespaceComboBox.DataSource = null;
             }            
 
-            this.sqlRepositoryBindingSource.DataSource = _currentSource;
+            this.sqlRepositoryBindingSource.DataSource = _currentSource.Items;
             this.sqlRepositoryBindingSource.RaiseListChangedEvents = true;
             this.sqlRepositoryBindingSource.ResetBindings(false);
 

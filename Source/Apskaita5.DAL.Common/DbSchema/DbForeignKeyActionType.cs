@@ -1,5 +1,5 @@
 ﻿
-namespace Apskaita5.DAL.Common
+namespace Apskaita5.DAL.Common.DbSchema
 {
     /// <summary>
     /// Represents a canonical type of the action taken by the database when a foreign key (parent)

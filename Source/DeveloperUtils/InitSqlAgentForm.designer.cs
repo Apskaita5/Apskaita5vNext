@@ -52,7 +52,6 @@
             this.sqlAgentsComboBox.Name = "sqlAgentsComboBox";
             this.sqlAgentsComboBox.Size = new System.Drawing.Size(409, 21);
             this.sqlAgentsComboBox.TabIndex = 0;
-            this.sqlAgentsComboBox.SelectedIndexChanged += new System.EventHandler(this.sqlAgentsComboBox_SelectedIndexChanged);
             // 
             // label1
             // 
@@ -62,7 +61,6 @@
             this.label1.Size = new System.Drawing.Size(105, 13);
             this.label1.TabIndex = 1;
             this.label1.Text = "SQL Implementation:";
-            this.label1.Click += new System.EventHandler(this.label1_Click);
             // 
             // label2
             // 
@@ -72,7 +70,6 @@
             this.label2.Size = new System.Drawing.Size(94, 13);
             this.label2.TabIndex = 2;
             this.label2.Text = "Connection String:";
-            this.label2.Click += new System.EventHandler(this.label2_Click);
             // 
             // label3
             // 
@@ -82,7 +79,6 @@
             this.label3.Size = new System.Drawing.Size(56, 13);
             this.label3.TabIndex = 3;
             this.label3.Text = "Database:";
-            this.label3.Click += new System.EventHandler(this.label3_Click);
             // 
             // connectionStringTextBox
             // 
@@ -92,7 +88,6 @@
             this.connectionStringTextBox.Name = "connectionStringTextBox";
             this.connectionStringTextBox.Size = new System.Drawing.Size(409, 20);
             this.connectionStringTextBox.TabIndex = 1;
-            this.connectionStringTextBox.TextChanged += new System.EventHandler(this.connectionStringTextBox_TextChanged);
             // 
             // databaseTextBox
             // 
@@ -102,7 +97,6 @@
             this.databaseTextBox.Name = "databaseTextBox";
             this.databaseTextBox.Size = new System.Drawing.Size(382, 20);
             this.databaseTextBox.TabIndex = 2;
-            this.databaseTextBox.TextChanged += new System.EventHandler(this.databaseTextBox_TextChanged);
             // 
             // openDatabaseFileButton
             // 

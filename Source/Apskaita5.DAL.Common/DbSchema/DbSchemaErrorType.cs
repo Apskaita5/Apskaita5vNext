@@ -1,4 +1,4 @@
-﻿namespace Apskaita5.DAL.Common
+﻿namespace Apskaita5.DAL.Common.DbSchema
 {
     /// <summary>
     /// Represents a type of a DbError, i.e. schema inconsistence.

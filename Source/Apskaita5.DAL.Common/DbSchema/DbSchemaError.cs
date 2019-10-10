@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Linq;
 
-namespace Apskaita5.DAL.Common
+namespace Apskaita5.DAL.Common.DbSchema
 {
     /// <summary>
     /// Represents a DbSchema error, i.e. inconsistency of (real and gauge) DbSchema.
@@ -88,15 +88,15 @@ namespace Apskaita5.DAL.Common
         {
             if (description.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(description));
             if (table.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(table));
-            if (sqlStatementsToRepair == null || sqlStatementsToRepair.Length < 1) 
+            if (null == sqlStatementsToRepair || sqlStatementsToRepair.Length < 1) 
                 throw new ArgumentNullException(nameof(sqlStatementsToRepair));
 
             ValidateSqlStatements(sqlStatementsToRepair);
 
             _errorType = errorType;
             _description = description.Trim();
-            _table = table.Trim().ToLowerInvariant();
-            _field = field.NotNullValue().Trim().ToLowerInvariant();
+            _table = table?.Trim() ?? string.Empty;
+            _field = field?.Trim() ?? string.Empty;
             _sqlStatementsToRepair = sqlStatementsToRepair;
             _isRepairable = true;
 
@@ -131,7 +131,7 @@ namespace Apskaita5.DAL.Common
         internal DbSchemaError(DbSchemaErrorType errorType, string description, string[] sqlStatementsToRepair)
         {
             if (description.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(description));
-            if (sqlStatementsToRepair == null || sqlStatementsToRepair.Length < 1)
+            if (null == sqlStatementsToRepair || sqlStatementsToRepair.Length < 1)
                 throw new ArgumentNullException(nameof(sqlStatementsToRepair));
 
             ValidateSqlStatements(sqlStatementsToRepair);
@@ -159,8 +159,8 @@ namespace Apskaita5.DAL.Common
             
             _errorType = errorType;
             _description = description.Trim();
-            _table = table.NotNullValue().Trim().ToLowerInvariant();
-            _field = field.NotNullValue().Trim().ToLowerInvariant();
+            _table = table?.Trim() ?? string.Empty;
+            _field = field?.Trim() ?? string.Empty;
             _sqlStatementsToRepair = new string[]{};
             _isRepairable = false;
 

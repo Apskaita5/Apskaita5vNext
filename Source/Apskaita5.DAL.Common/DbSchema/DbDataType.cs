@@ -1,5 +1,5 @@
 ﻿
-namespace Apskaita5.DAL.Common
+namespace Apskaita5.DAL.Common.DbSchema
 {
     /// <summary>
     /// Represents canonical database types.
