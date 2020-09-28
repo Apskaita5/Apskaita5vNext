@@ -4,8 +4,7 @@ using Microsoft.Extensions.Logging;
 namespace Apskaita5.DAL.MySql
 {
     internal class MySqlTraceListener : System.Diagnostics.TraceListener
-    {
-
+    {       
         private readonly ILogger _logger;
         private readonly MySqlAgent _agent;
 
@@ -24,7 +23,7 @@ namespace Apskaita5.DAL.MySql
 
         public override void WriteLine(string message)
         {
-            if (_logger != null && message != null)
+            if (null != _logger && !message.IsNullOrWhitespace())
             {
                 if (message.IndexOf("warning", StringComparison.OrdinalIgnoreCase) < 0) _logger.LogError(message);
                 else _logger.LogWarning(message);

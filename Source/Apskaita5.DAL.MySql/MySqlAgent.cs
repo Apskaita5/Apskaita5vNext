@@ -77,14 +77,7 @@ namespace Apskaita5.DAL.MySql
         /// <param name="sqlDictionary">an implementation of SQL dictionary to use (if any)</param>
         /// <param name="logger">a logger to log errors and warnings (if any)</param>
         public MySqlAgent(string baseConnectionString, string databaseName, ISqlDictionary sqlDictionary, ILogger logger)
-            : base(baseConnectionString, false, databaseName, sqlDictionary, logger)
-        {
-            if (logger != null)
-            {
-                MySqlTrace.Switch.Level = System.Diagnostics.SourceLevels.Warning;
-                MySqlTrace.Listeners.Add(new MySqlTraceListener(logger, this));
-            }            
-        }
+            : base(baseConnectionString, false, databaseName, sqlDictionary, logger) { }
 
         /// <summary>
         /// Clones a MySqlAgent instance.
@@ -188,8 +181,7 @@ namespace Apskaita5.DAL.MySql
         /// <param name="cancellationToken">a cancelation token (if any)</param>
         /// <exception cref="InvalidOperationException">if transaction is already in progress</exception>
         protected override async Task<object> TransactionBeginAsync(CancellationToken cancellationToken)
-        {
-
+        {        
             if (IsTransactionInProgress) throw new InvalidOperationException(Properties.Resources.CannotStartTransactionException);
 
             var connection = await OpenConnectionAsync();
@@ -215,8 +207,7 @@ namespace Apskaita5.DAL.MySql
                     catch (Exception) { }
                 }
                 throw;
-            }
-            
+            }                 
         }
 
         /// <summary>
@@ -277,20 +268,22 @@ namespace Apskaita5.DAL.MySql
         /// <param name="ex">an exception that caused the rollback</param>
         protected override void TransactionRollback(Exception ex)
         {
-            
-            try
+            if (!CurrentTransaction.Connection.IsNull() && CurrentTransaction.Connection.State == ConnectionState.Open)
             {
-                CurrentTransaction.Rollback();
-            }
-            catch (Exception e)
-            {
-                CleanUpTransaction();
-                LogAndThrow((ex ?? new Exception(Properties.Resources.ManualRollbackException)).WrapSqlException("ROLLBACK", e));                
-            }
+                try
+                {
+                    CurrentTransaction.Rollback();
+                }
+                catch (Exception e)
+                {
+                    CleanUpTransaction();
+                    LogAndThrow((ex ?? new Exception(Properties.Resources.ManualRollbackException)).WrapSqlException("ROLLBACK", e));
+                }
+            }                       
 
             CleanUpTransaction();
 
-            if (ex != null) throw ex;
+            if (ex != null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ex).Throw(); ;
         }
 
         private void CleanUpTransaction()
@@ -619,10 +612,21 @@ namespace Apskaita5.DAL.MySql
         }
 
         #endregion
-        
-        
+
+
+        private bool _isFirstRun = true;
+
         internal async Task<MySqlConnection> OpenConnectionAsync(bool withoutDatabase = false)
         {
+            if (_isFirstRun)
+            {
+                if (null != _Logger && UseNativeLogging)
+                {
+                    MySqlTrace.Switch.Level = System.Diagnostics.SourceLevels.Warning;
+                    MySqlTrace.Listeners.Add(new MySqlTraceListener(_Logger, this));
+                }
+                _isFirstRun = false;
+            }
 
             MySqlConnection result;
             if (CurrentDatabase.IsNullOrWhitespace() || withoutDatabase)
@@ -651,12 +655,10 @@ namespace Apskaita5.DAL.MySql
             }
 
             return result;
-
         }
 
         private async Task HandleOpenConnectionException(MySqlConnection conn, Exception ex)
-        {   
-             
+        {                 
             if (!conn.IsNull())
             {
                 if (conn.State != ConnectionState.Closed)
@@ -670,8 +672,7 @@ namespace Apskaita5.DAL.MySql
 
             var mySqlEx = ex as MySqlException;
             if (!mySqlEx.IsNull())
-            {
-
+            {     
                 if (mySqlEx.Number == 28000 ||
                     mySqlEx.Number == 42000)
                 {
@@ -685,29 +686,24 @@ namespace Apskaita5.DAL.MySql
                 }
 
                 throw mySqlEx.WrapSqlException();
-
             }
 
-            throw ex;
-
+            throw ex;                            
         }
 
 
         private void AddParams(MySqlCommand command, SqlParam[] parameters)
-        {
-
+        {     
             command.Parameters.Clear();
 
             if (null == parameters || parameters.Length < 1) return;
 
             foreach (var p in parameters.Where(p => !p.ReplaceInQuery)) command.Parameters.AddWithValue(
                 ParamPrefix + p.Name.Trim(), p.GetValue(this));
-
         }
 
         private string ReplaceParams(string sqlQuery, SqlParam[] parameters)
-        {
-
+        {            
             if (null == parameters || parameters.Length < 1) return sqlQuery;
 
             var result = sqlQuery;
@@ -733,8 +729,7 @@ namespace Apskaita5.DAL.MySql
 
         private async Task<T> ExecuteCommandIntAsync<T>(MySqlConnection connection, string sqlStatement, 
             SqlParam[] parameters, CancellationToken cancellationToken)
-        {
-
+        {        
             var transaction = CurrentTransaction;
 
             try
@@ -839,6 +834,7 @@ namespace Apskaita5.DAL.MySql
 
         protected override void DisposeManagedState()
         {
+            if (!UseNativeLogging) return;
             var myListener = MySqlTrace.Listeners.OfType<MySqlTraceListener>().Where(l => l.BelongsTo(this));
             if (myListener != null) foreach (var item in myListener) MySqlTrace.Listeners.Remove(item);
         }

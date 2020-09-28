@@ -1,4 +1,7 @@
-﻿namespace Apskaita5.DAL.Common
+﻿using System;
+using System.Threading.Tasks;
+
+namespace Apskaita5.DAL.Common
 {
 
     /// <summary>
@@ -10,30 +13,47 @@
     {
 
         /// <summary>
-        /// Retrieve cached item
+        /// Retrieve cached item of type <typeparamref name="T"/> or fetch one by the factory method. 
         /// </summary>
-        /// <typeparam name="T">Type of cached item</typeparam>
-        /// <param name="region">Cache region to use (the reserved region is "Accounting.DAL.Common")</param>
-        /// <param name="key">Name of cached item</param>
-        /// <param name="value">Cached value. Default(T) if item doesn't exist.</param>
-        /// <returns>Cached item as type</returns>
-        bool TryGet<T>(string region, string key, out T value);
+        /// <typeparam name="T">a type of the cached item to retrieve</typeparam>
+        /// <param name="factory">a method to fetch the item to cache</param>
+        /// <returns></returns>
+        Task<T> GetOrCreate<T>(Func<Task<T>> factory);
 
         /// <summary>
-        /// Insert value into the cache using appropriate name/value pairs
+        /// Retrieve cached item of type <typeparamref name="T"/> or fetch one by the factory method. 
         /// </summary>
-        /// <typeparam name="T">Type of cached item</typeparam>
-        /// <param name="value">Item to be cached</param>
-        /// <param name="key">Name of item</param>
-        /// <param name="region">Cache region to use (the reserved region is "Accounting.DAL.Common")</param>
-        void Set<T>(string region, string key, T value);
+        /// <typeparam name="T">a type of the cached item to retrieve</typeparam>
+        /// <param name="region">a cache region, e.g. a database that is currently in use</param>
+        /// <param name="factory">a method to fetch the item to cache</param>
+        /// <returns></returns>
+        Task<T> GetOrCreate<T>(string region, Func<Task<T>> factory);
 
         /// <summary>
-        /// Remove item from cache
+        /// Remove item of type <typeparamref name="T"/> from cache.
         /// </summary>
-        /// <param name="region">Cache region to use (the reserved region is "Accounting.DAL.Common")</param>
-        /// <param name="key">Name of cached item</param>        
-        void Clear(string region, string key);
+        /// <typeparam name="T">a type of the cached item to clear</typeparam>
+        void Clear<T>();
+
+        /// <summary>
+        /// Remove item of type <typeparamref name="T"/> from cache
+        /// </summary>
+        /// <typeparam name="T">a type of the cached item to clear</typeparam>
+        /// <param name="region">a cache region, e.g. a database that is currently in use</param>
+        void Clear<T>(string region);
+
+        /// <summary>
+        /// Remove item of type specified from cache.
+        /// </summary>
+        /// <param name="cachedItemType">a type of the cached item to clear</param>
+        void Clear(Type cachedItemType);
+
+        /// <summary>
+        /// Remove item of type specified from cache.
+        /// </summary>
+        /// <param name="cachedItemType">a type of the cached item to clear</param>
+        /// <param name="region">a cache region, e.g. a database that is currently in use</param>
+        void Clear(Type cachedItemType, string region);
 
     }
 }

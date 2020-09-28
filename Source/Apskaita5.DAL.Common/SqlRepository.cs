@@ -101,25 +101,25 @@ namespace Apskaita5.DAL.Common
 
             try
             {
-                LoadXml(File.ReadAllText(filePath, new UTF8Encoding(false)));
+                LoadXml(File.ReadAllText(filePath, new UTF8Encoding(false)), clearCurrentItems);
             }
             catch (Exception)
             {
                 try
                 {
-                    LoadXml(File.ReadAllText(filePath, new UTF8Encoding(true)));
+                    LoadXml(File.ReadAllText(filePath, new UTF8Encoding(true)), clearCurrentItems);
                 }
                 catch (Exception)
                 {
                     try
                     {
-                        LoadXml(File.ReadAllText(filePath, Encoding.Unicode));
+                        LoadXml(File.ReadAllText(filePath, Encoding.Unicode), clearCurrentItems);
                     }
                     catch (Exception)
                     {                        
                         try
                         {
-                            LoadXml(File.ReadAllText(filePath, Encoding.ASCII));
+                            LoadXml(File.ReadAllText(filePath, Encoding.ASCII), clearCurrentItems);
                         }
                         catch (Exception ex)
                         {
@@ -147,7 +147,15 @@ namespace Apskaita5.DAL.Common
 
             var result = Utilities.DeSerializeFromXml<SqlRepository>(xmlString);
 
-            if (clearCurrentItems) _items.Clear();
+            if (clearCurrentItems)
+            {
+                _items.Clear();
+                _application = result._application;
+                _description = result._description;
+                _extension = result._extension;
+                _extensionGuid = result._extensionGuid;
+                _sqlImplementation = result._sqlImplementation;
+            }            
             _items.AddRange(result._items);
 
         }

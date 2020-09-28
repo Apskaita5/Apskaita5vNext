@@ -149,10 +149,7 @@ namespace Apskaita5.DAL.Common
         /// <param name="dataType">A supported DataType of the column to be created.</param>
         public LightDataColumn(string columnName, Type dataType)
         {
-
-            if (null == dataType) throw new ArgumentNullException(nameof(dataType));
-
-            _dataType = dataType;
+            _dataType = dataType ?? throw new ArgumentNullException(nameof(dataType));
 
             if (columnName.IsNullOrWhiteSpace())
             {
@@ -163,8 +160,7 @@ namespace Apskaita5.DAL.Common
                 _columnName = columnName;
             }
 
-            _caption = columnName;
-
+            _caption = columnName;   
         }
 
         /// <summary>

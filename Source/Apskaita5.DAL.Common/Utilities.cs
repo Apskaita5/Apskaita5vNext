@@ -1,6 +1,8 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Xml;
 using System.Xml.Serialization;
 using Apskaita5.DAL.Common.DbSchema;
@@ -175,6 +177,34 @@ namespace Apskaita5.DAL.Common
         {
             return (source ?? string.Empty).IndexOf(substring?.Trim() ?? string.Empty,
                 StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        public static IEnumerable<FieldInfo> GetStaticFields<T>()
+        {
+            var fields = new List<FieldInfo>();
+
+            var type = typeof(T);
+
+            while (type != null)
+            {
+                fields.AddRange(type.GetFields(BindingFlags.NonPublic | BindingFlags.Public
+                    | BindingFlags.Static | BindingFlags.DeclaredOnly));
+                type = type.GetTypeInfo().BaseType;
+            }
+
+            return fields;
+        }
+
+        /// <summary>
+        /// Gets a DateTime containing DateTime.Now timestamp with a second precision.
+        /// </summary>
+        /// <remarks>Required by most SQL engines.</remarks>
+        internal static DateTime GetCurrentTimeStamp()
+        {
+            var result = DateTime.UtcNow;
+            result = new DateTime((long)(Math.Floor((double)(result.Ticks / TimeSpan.TicksPerSecond))
+                * TimeSpan.TicksPerSecond), DateTimeKind.Utc);
+            return result;
         }
 
     }

@@ -1,10 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Globalization;
-using System.Linq;
-using System.Text;
+﻿using System.Globalization;
 
-namespace Apskaita5.Common
+namespace Apskaita5.Common.LanguageExtensions
 {
     /// <summary>
     /// Represents a numeric to natural language convertor for the Lithuanian language.

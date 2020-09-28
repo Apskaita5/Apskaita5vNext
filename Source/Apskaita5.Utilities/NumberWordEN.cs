@@ -2,7 +2,7 @@
 using System.Globalization;
 using System.Text;
 
-namespace Apskaita5.Common
+namespace Apskaita5.Common.LanguageExtensions
 {
     /// <summary>
     /// Represents a numeric to natural language convertor for the English language.

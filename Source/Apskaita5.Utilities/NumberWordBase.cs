@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-namespace Apskaita5.Common
+namespace Apskaita5.Common.LanguageExtensions
 {
     /// <summary>
     /// Represents a base class for numeric to natural language convertors.

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -12,7 +13,7 @@ namespace Apskaita5.DAL.Common.MicroOrm
     {
 
         private ISqlAgent _agent;
-        private static ConcurrentDictionary<Type, object> maps =
+        private static ConcurrentDictionary<Type, object> _maps =
             new ConcurrentDictionary<Type, object>(Environment.ProcessorCount * 2, 1000);
 
 
@@ -45,39 +46,129 @@ namespace Apskaita5.DAL.Common.MicroOrm
         #region Fetch And Load Methods
 
         /// <summary>
-        /// Fetches data for a business object of type T using integrated micro ORM.
+        /// Fetches a business object of type T by its primary key using integrated micro ORM.
+        /// (Activator.CreateInstance is used to instantiate the business object)
+        /// </summary>
+        /// <typeparam name="T">a type of a business object to fetch</typeparam>
+        /// <param name="id">primary key value</param> 
+        /// <param name="cancellationToken">a cancelation token (if any)</param>
+        public async Task<T> FetchEntityAsync<T>(object id, CancellationToken cancellationToken) where T : class
+        {
+
+            if (id.IsNull()) throw new ArgumentNullException(nameof(id));
+
+            var data = await FetchTableAsync<T>(id, cancellationToken).ConfigureAwait(false);
+            if (data.Rows.Count < 1) throw new EntityNotFoundException(typeof(T), id.ToString());
+
+            var map = GetOrCreateMap<T>();
+
+            return map.LoadInstance(data.Rows[0]);
+
+        }
+
+        /// <summary>
+        /// Fetches a list of child business objects of type T by parent entity id using integrated micro ORM.
+        /// (Activator.CreateInstance is used to instantiate the business object)
+        /// </summary>
+        /// <typeparam name="T">a type of a (child) business objects to fetch</typeparam>
+        /// <param name="parentId">parent key value</param> 
+        /// <param name="cancellationToken">a cancelation token (if any)</param>
+        public async Task<List<T>> FetchChildEntitiesAsync<T>(object parentId, CancellationToken cancellationToken) where T : class
+        {
+            var data = await FetchTableByParentAsync<T>(parentId, cancellationToken).ConfigureAwait(false);
+
+            var map = GetOrCreateMap<T>();
+            var result = new List<T>();
+
+            foreach (var row in data.Rows)
+            {
+                result.Add(map.LoadInstance(row));
+            }
+
+            return result;   
+        }
+
+        /// <summary>
+        /// Fetches a list of all of the business objects of type T using integrated micro ORM.
+        /// (Activator.CreateInstance is used to instantiate the business object)
+        /// </summary>
+        /// <typeparam name="T">a type of a business objects to fetch</typeparam>
+        /// <param name="cancellationToken">a cancelation token (if any)</param>
+        public async Task<List<T>> FetchAllEntitiesAsync<T>(CancellationToken cancellationToken) where T : class
+        {
+
+            var data = await FetchTableForAllAsync<T>(cancellationToken).ConfigureAwait(false);
+
+            var map = GetOrCreateMap<T>();
+            var result = new List<T>();
+
+            foreach (var row in data.Rows)
+            {
+                result.Add(map.LoadInstance(row));
+            }
+
+            return result;
+
+        }
+
+        /// <summary>
+        /// Fetches data for a business object of type T by its primary key using integrated micro ORM.
         /// </summary>
         /// <typeparam name="T">a type of a business object to fetch the data for</typeparam>
-        /// <param name="id">primary key value or parent key value</param> 
+        /// <param name="id">primary key value</param> 
         /// <param name="cancellationToken">a cancelation token (if any)</param>
-        /// <param name="fetchByParentId">whether to fetch data by a parent id instead of 
-        /// a primary key for the object itself</param>
-        public Task<LightDataTable> FetchTableAsync<T>(object id, bool fetchByParentId, CancellationToken cancellationToken) where T : class
+        public Task<LightDataTable> FetchTableAsync<T>(object id, CancellationToken cancellationToken) where T : class
         {
 
             if (id.IsNull()) throw new ArgumentNullException(nameof(id));
 
             var map = GetOrCreateMap<T>();  
             
-            SqlParam[] parameters;
-            if (fetchByParentId) parameters = new SqlParam[] { new SqlParam(map.ParentIdFieldName, id) };
-            else parameters = new SqlParam[] { new SqlParam(map.PrimaryKeyFieldName, id) };
-
-            if (fetchByParentId && !map.FetchByParentIdQueryToken.IsNullOrWhiteSpace())
-            {
-                return _agent.FetchTableAsync(map.FetchByParentIdQueryToken, parameters, cancellationToken);
-            }
-            else if (!fetchByParentId && !map.FetchQueryToken.IsNullOrWhiteSpace())
+            var parameters = new SqlParam[] { new SqlParam(map.PrimaryKeyFieldName, id) };
+            
+            if (!map.FetchQueryToken.IsNullOrWhiteSpace())
             {
                 return _agent.FetchTableAsync(map.FetchQueryToken, parameters, cancellationToken);
             }
 
-            string query; 
-            if (fetchByParentId) query = map.GetOrAddSelectByParentIdQuery(GetSelectByParentIdQuery);
-            else query = map.GetOrAddSelectQuery(GetSelectQuery);
+            string query = map.GetOrAddSelectQuery(GetSelectQuery);             
             
             return _agent.FetchTableRawAsync(query, parameters, cancellationToken);
 
+        }
+
+        /// <summary>
+        /// Fetches data for a business object of type T by parent entity id using integrated micro ORM.
+        /// </summary>
+        /// <typeparam name="T">a type of a business object to fetch the data for</typeparam>
+        /// <param name="parentId">parent key value</param> 
+        /// <param name="cancellationToken">a cancelation token (if any)</param>
+        public Task<LightDataTable> FetchTableByParentAsync<T>(object parentId, CancellationToken cancellationToken) where T : class
+        {
+            var map = GetOrCreateMap<T>();
+
+            if (map.ParentIdFieldName.IsNullOrWhiteSpace()) throw new InvalidOperationException(string.Format(
+                "Entity {0} is not a child entity and cannot be fetched by a parent id.", typeof(T).FullName));
+
+            SqlParam[] parameters = null; 
+            if (!parentId.IsNull()) parameters = new SqlParam[] { new SqlParam(map.ParentIdFieldName, parentId) };
+
+            if (!map.FetchByParentIdQueryToken.IsNullOrWhiteSpace())
+            {
+                return _agent.FetchTableAsync(map.FetchByParentIdQueryToken, parameters, cancellationToken);
+            }
+
+            string query;
+            if (parentId.IsNull())
+            {
+                query = map.GetOrAddSelectByNullParentIdQuery(GetSelectByNullParentIdQuery);
+            }
+            else
+            {
+                query = map.GetOrAddSelectByParentIdQuery(GetSelectByParentIdQuery);
+            }
+            
+            return _agent.FetchTableRawAsync(query, parameters, cancellationToken);  
         }
 
         /// <summary>
@@ -85,8 +176,8 @@ namespace Apskaita5.DAL.Common.MicroOrm
         /// </summary>
         /// <typeparam name="T">a type of business objects to fetch the data for</typeparam>
         /// <param name="cancellationToken">a cancelation token (if any)</param>
-        public Task<LightDataTable> FetchAllAsync<T>(CancellationToken cancellationToken) where T : class
-        {
+        public Task<LightDataTable> FetchTableForAllAsync<T>(CancellationToken cancellationToken) where T : class
+        {       
 
             var map = GetOrCreateMap<T>();
 
@@ -110,7 +201,7 @@ namespace Apskaita5.DAL.Common.MicroOrm
             if (instance.IsNull()) throw new ArgumentNullException(nameof(instance));
             if (id.IsNull()) throw new ArgumentNullException(nameof(id));
 
-            var data = await FetchTableAsync<T>(id, false, cancellationToken).ConfigureAwait(false);
+            var data = await FetchTableAsync<T>(id, cancellationToken).ConfigureAwait(false);
             if (data.Rows.Count < 1) throw new EntityNotFoundException(typeof(T), id.ToString());
 
             LoadObjectFields(instance, data.Rows[0]);
@@ -143,6 +234,13 @@ namespace Apskaita5.DAL.Common.MicroOrm
         protected abstract string GetSelectByParentIdQuery<T>(OrmEntityMap<T> map) where T : class;
 
         /// <summary>
+        /// Gets a (trivial) select by null parent id statement for business objects of type T using integrated micro ORM.
+        /// </summary>
+        /// <typeparam name="T">a type of a business objects to get a select statement for</typeparam>
+        /// <param name="map">a micro ORM map for a business object type</param>
+        protected abstract string GetSelectByNullParentIdQuery<T>(OrmEntityMap<T> map) where T : class;
+
+        /// <summary>
         /// Gets a (trivial) select by primary key statement for a business object of type T using integrated micro ORM.
         /// </summary>
         /// <typeparam name="T">a type of a business object to get a statement for</typeparam>
@@ -159,6 +257,27 @@ namespace Apskaita5.DAL.Common.MicroOrm
         #endregion
 
         #region Initialization Methods
+
+        /// <summary>
+        /// Fetches a new business object of type T and initializes it with the database data using integrated micro ORM.
+        /// </summary>
+        /// <typeparam name="T">a type of a business object to fetch</typeparam>
+        /// <param name="parameters">parameters for the initialization query defined by <see cref="OrmIdentityMap{T}.InitQueryToken"/></param> 
+        /// <param name="cancellationToken">a cancelation token (if any)</param>
+        public async Task<T> InitEntityAsync<T>(SqlParam[] parameters, CancellationToken cancellationToken) where T : class
+        {
+
+            var map = GetOrCreateMap<T>();
+
+            if (map.InitQueryToken.IsNullOrWhiteSpace()) throw new NotSupportedException(
+                string.Format(Properties.Resources.InitQueryTokenNullException, typeof(T).FullName));
+
+            var data = await _agent.FetchTableAsync(map.InitQueryToken, parameters, cancellationToken);
+            if (data.Rows.Count < 1) throw new EntityContextNotFoundException(typeof(T), map.InitQueryToken, parameters);
+
+            return map.InitInstance(data.Rows[0]);
+
+        }
 
         /// <summary>
         /// Fetches data for a new business object of type T initialization (context) using integrated micro ORM.
@@ -224,21 +343,33 @@ namespace Apskaita5.DAL.Common.MicroOrm
         /// </summary>
         /// <typeparam name="T">a type of a business object to insert</typeparam>
         /// <param name="instance">an instance of business object to insert</param>
+        /// <param name="userId">a user identificator for audit field InsertedBy 
+        /// (only applicable if the entity implements standard audit fields)</param>
         /// <param name="extraParameters">extra parameters for insert if some of the business object data
         /// fields are not reflected as properties, e.g. operation type, parent id etc.;
         /// this kind of fields shall be insert only; name of a parameter for such a field shall
         /// match database field name</param>
-        public async Task ExecuteInsertAsync<T>(T instance, SqlParam[] extraParameters = null) where T : class
+        public async Task ExecuteInsertAsync<T>(T instance, string userId = null, SqlParam[] extraParameters = null) where T : class
         {
 
             if (instance.IsNull()) throw new ArgumentNullException(nameof(instance));
 
             var map = GetOrCreateMap<T>();
 
-            var newPrimaryKey = await _agent.ExecuteInsertRawAsync(map.GetOrAddInsertStatement(GetInsertStatement, extraParameters),
-                map.GetParamsForInsert(instance, extraParameters)).ConfigureAwait(false);
+            map.SetAuditFieldsForInsert(instance, userId);
 
-            map.SetNewPrimaryKey(instance, newPrimaryKey);
+            if (map.PrimaryKeyAutoIncrement)
+            {
+                var newPrimaryKey = await _agent.ExecuteInsertRawAsync(map.GetOrAddInsertStatement(
+                    GetInsertStatement, extraParameters), map.GetParamsForInsert(instance, extraParameters)).ConfigureAwait(false);
+                map.SetPrimaryKeyAutoIncrementValue(instance, newPrimaryKey);
+            }
+            else
+            {
+                await _agent.ExecuteInsertRawAsync(map.GetOrAddInsertStatement(GetInsertStatement, extraParameters), 
+                    map.GetParamsForInsert(instance, extraParameters)).ConfigureAwait(false);
+                map.UpdatePrimaryKey(instance);
+            }             
 
         }
 
@@ -262,18 +393,26 @@ namespace Apskaita5.DAL.Common.MicroOrm
         /// </summary>
         /// <typeparam name="T">a type of a business object to update</typeparam>
         /// <param name="instance">an instance of business object to update</param>
+        /// <param name="userId">a user identificator for audit field UpdatedBy 
+        /// (only applicable if the entity implements standard audit fields)</param>
         /// <param name="scope">a scope of the update operation; a business objects can define
         /// different update scopes (different collections of properties) as an ENUM
         /// which nicely converts into int.</param>
-        public Task<int> ExecuteUpdateAsync<T>(T instance, int? scope = null) where T : class
+        public async Task<int> ExecuteUpdateAsync<T>(T instance, string userId = null, int? scope = null) where T : class
         {
 
             if (instance.IsNull()) throw new ArgumentNullException(nameof(instance));
 
             var map = GetOrCreateMap<T>();
 
-            return _agent.ExecuteCommandRawAsync(map.GetOrAddUpdateStatement(scope, GetUpdateStatement),
+            map.SetAuditFieldsForUpdate(instance, userId);
+
+            var result = await _agent.ExecuteCommandRawAsync(map.GetOrAddUpdateStatement(scope, GetUpdateStatement),
                 map.GetParamsForUpdate(instance, scope));
+
+            if (map.PrimaryKeyUpdatable) map.UpdatePrimaryKey(instance);
+
+            return result;
 
         }
 
@@ -296,15 +435,19 @@ namespace Apskaita5.DAL.Common.MicroOrm
         /// </summary>
         /// <typeparam name="T">a type of a business object to delete</typeparam>
         /// <param name="instance">an instance of the business object to delete</param>
-        public Task<int> ExecuteDeleteAsync<T>(T instance) where T : class
+        public async Task<int> ExecuteDeleteAsync<T>(T instance) where T : class
         {
 
             if (instance.IsNull()) throw new ArgumentNullException(nameof(instance));
 
             var map = GetOrCreateMap<T>();
 
-            return _agent.ExecuteCommandRawAsync(map.GetOrAddDeleteStatement(GetDeleteStatement), 
+            var result = await _agent.ExecuteCommandRawAsync(map.GetOrAddDeleteStatement(GetDeleteStatement), 
                 map.GetParamsForDelete(instance));
+
+            map.DeletePrimaryKey(instance);
+
+            return result;
 
         }
 
@@ -336,7 +479,7 @@ namespace Apskaita5.DAL.Common.MicroOrm
 
         protected OrmEntityMap<T> GetOrCreateMap<T>() where T : class
         {
-            return (OrmEntityMap<T>)maps.GetOrAdd(typeof(T), type => new OrmEntityMap<T>());
+            return (OrmEntityMap<T>)_maps.GetOrAdd(typeof(T), type => new OrmEntityMap<T>());
         }
 
     }

@@ -2,7 +2,7 @@
 
 namespace Apskaita5.DAL.Common.DbSchema
 {
-    public class DbCloneProgressArgs
+    public sealed class DbCloneProgressArgs
     {
 
         public DbCloneProgressArgs(Stage currentStage, string currentTable, int rowProgress)

@@ -24,8 +24,7 @@ namespace Apskaita5.DAL.MySql
 
 
         protected override string GetSelectByParentIdQuery<T>(OrmEntityMap<T> map)
-        {
-
+        {   
             if (map.IsNull()) throw new ArgumentNullException(nameof(map));
 
             var fields = map.GetFieldsForSelect().Select(f => string.Format("{0} AS {1}",
@@ -34,7 +33,17 @@ namespace Apskaita5.DAL.MySql
             return string.Format("SELECT {0} FROM {1} WHERE {2}={3};", string.Join(", ", fields),
                 map.TableName.ToConventional(Agent), map.ParentIdFieldName.ToConventional(Agent),
                 ParamPrefix + map.ParentIdFieldName);
+        }
 
+        protected override string GetSelectByNullParentIdQuery<T>(OrmEntityMap<T> map)
+        {          
+            if (map.IsNull()) throw new ArgumentNullException(nameof(map));
+
+            var fields = map.GetFieldsForSelect().Select(f => string.Format("{0} AS {1}",
+                f.DbFieldName.ToConventional(Agent), f.PropName.Trim()));
+
+            return string.Format("SELECT {0} FROM {1} WHERE {2} IS NULL;", string.Join(", ", fields),
+                map.TableName.ToConventional(Agent), map.ParentIdFieldName.ToConventional(Agent));
         }
 
         protected override string GetSelectQuery<T>(OrmEntityMap<T> map)
@@ -51,8 +60,7 @@ namespace Apskaita5.DAL.MySql
         }
 
         protected override string GetSelectAllQuery<T>(OrmEntityMap<T> map)
-        {
-
+        {  
             if (map.IsNull()) throw new ArgumentNullException(nameof(map));
 
             var fields = map.GetFieldsForSelect().Select(f => string.Format("{0} AS {1}",
@@ -87,7 +95,7 @@ namespace Apskaita5.DAL.MySql
 
             return string.Format("UPDATE {0} SET {1} WHERE {2}={3};", map.TableName.ToConventional(Agent),
                 string.Join(", ", fields), map.PrimaryKeyFieldName.ToConventional(Agent),
-                ParamPrefix + map.PrimaryKeyFieldName);
+                ParamPrefix + map.PrimaryKeyUpdateWhereParamName);
         }
 
         protected override string GetDeleteStatement<T>(OrmEntityMap<T> map)

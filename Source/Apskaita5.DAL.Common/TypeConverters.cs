@@ -542,7 +542,62 @@ namespace Apskaita5.DAL.Common.TypeConverters
         {
             return new DateTimeOffset(DateTime.SpecifyKind(GetDateTime(value), DateTimeKind.Utc));
         }
-        
+
+        /// <summary>
+        /// Converts (coerces) object value to type T enum. Throws an exception if the object value 
+        /// cannot be (reasonably) converted to type T enum. 
+        /// </summary>
+        /// <typeparam name="T">The type of the enumeration.</typeparam>
+        /// <param name="value">an object value to convert</param>
+        /// <remarks>Does not support flags.
+        /// Gets an enum value by converting int value (if it is int value) to the appropriate enum value
+        /// or by parsing string value (if it is string value) to the appropriate enum value.</remarks>
+        /// <exception cref="ArgumentException">Type T is not an enumeration.</exception>
+        /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
+        public static T? GetEnumNullable<T>(this object value) where T : struct
+        {
+            if (!typeof(T).IsEnum)
+                throw new ArgumentException(string.Format(Properties.Resources.TypeConverters_ValueIsNotEnumeration,
+                    typeof(T).FullName));
+
+            if (value.IsNull()) return null;
+
+            int intValue = 0;
+            bool success = false;
+
+            try
+            {
+                intValue = value.GetInt32();
+                success = true;
+            }
+            catch (Exception) { }
+
+            if (success)
+            {
+                if (!Enum.IsDefined(typeof(T), intValue))
+                    throw new FormatException(string.Format(Properties.Resources.TypeConverters_EnumNumericValueInvalid,
+                        intValue.ToString(), typeof(T).Name));
+                return (T)(object)intValue;
+            }
+
+            if (TryReadString(value, out string stringValue) && !stringValue.IsNullOrWhiteSpace())
+            {
+                try
+                {
+                    return (T)Enum.Parse(typeof(T), stringValue.Trim(), true);
+                }
+                catch (Exception)
+                {
+                    throw new FormatException(string.Format(Properties.Resources.TypeConverters_EnumStringValueInvalid,
+                        stringValue, typeof(T).Name));
+                }
+            }
+
+            throw new FormatException(string.Format(Properties.Resources.TypeConverters_InvalidFormatException,
+                value.GetType().Name, typeof(T).Name, value.ToString()));
+
+        }
+
 
         /// <summary>
         /// Converts (coerces) object value to boolean. Throws an exception if the object value 

@@ -72,8 +72,7 @@ namespace Apskaita5.DAL.Common
         /// Gets a value indicationg whether an SQL transation is in progress.
         /// </summary>
         public abstract bool IsTransactionInProgress { get; }
-
-
+     
 
         /// <summary>
         /// Gets or sets a query timeout in ms. (default is 10.000 ms)
@@ -102,6 +101,11 @@ namespace Apskaita5.DAL.Common
         /// </summary>
         public bool AllSchemaNamesLowerCased { get; set; } = true;
 
+        /// <summary>
+        /// Gets or sets whether a logger shall be used by native implementations, e.g. by a MySql connector.
+        /// </summary>
+        public bool UseNativeLogging { get; set; } = false;
+
         #endregion
 
 
@@ -118,16 +122,14 @@ namespace Apskaita5.DAL.Common
         /// <param name="sqlDictionary">an implementation of SQL dictionary to use (if any)</param>
         protected SqlAgentBase(string baseConnectionString, bool allowEmptyConnString, 
             string databaseName, ISqlDictionary sqlDictionary, ILogger logger)
-        {
-            
+        {                  
             if (baseConnectionString.IsNullOrWhiteSpace() && !allowEmptyConnString)
                 throw new ArgumentNullException(nameof(baseConnectionString));
 
             _sqlDictionary = sqlDictionary;
             BaseConnectionString = baseConnectionString?.Trim() ?? string.Empty;
             CurrentDatabase = databaseName ?? string.Empty;
-            _Logger = logger;
-
+            _Logger = logger;     
         }
 
         /// <summary>
@@ -193,26 +195,12 @@ namespace Apskaita5.DAL.Common
         /// <param name="cancellationToken">a cancelation token (if any); it is not used by the transaction
         /// infrastructure, only passed to the method that might use it and throw OperationCanceledException</param>
         public async Task ExecuteInTransactionAsync(Func<CancellationToken, Task> method, 
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken = default(CancellationToken))
         {
-
-            bool isOwner = false;
-
-            if (IsTransactionInProgress)
-            {
-
-                if (null == method) TransactionRollback(new ArgumentNullException(nameof(method)));
-
-            }
-            else
-            {
-
-                if (null == method) throw new ArgumentNullException(nameof(method));
-
-                RegisterTransactionForAsyncContext(await TransactionBeginAsync(cancellationToken).ConfigureAwait(false));
-                isOwner = true;
-
-            }
+            var transaction = await CaptureOrInitTransaction(method, cancellationToken);
+            // transaction shall be registered within async context of this method
+            if (null != transaction) RegisterTransactionForAsyncContext(transaction);
+            bool isOwner = (null != transaction);
 
             try
             {
@@ -221,11 +209,9 @@ namespace Apskaita5.DAL.Common
             }
             catch (Exception ex)
             {
-                Log(ex);
-                if (isOwner && IsTransactionInProgress) TransactionRollback(ex);                
+                HandleTransactionEx(ex, isOwner);
                 throw;
-            }            
-
+            }   
         }
 
         /// <summary>
@@ -237,21 +223,12 @@ namespace Apskaita5.DAL.Common
         /// <param name="cancellationToken">a cancelation token (if any); it is not used by the transaction
         /// infrastructure, only passed to the method that might use it and throw OperationCanceledException</param>
         public async Task ExecuteInTransactionAsync(Func<SqlAgentBase, CancellationToken, Task> method,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken = default(CancellationToken))
         {
-
-            bool isOwner = false;
-
-            if (IsTransactionInProgress)
-            {    
-                if (null == method) TransactionRollback(new ArgumentNullException(nameof(method)));
-            }
-            else
-            {         
-                if (null == method) throw new ArgumentNullException(nameof(method));
-                RegisterTransactionForAsyncContext(await TransactionBeginAsync(cancellationToken).ConfigureAwait(false));
-                isOwner = true;
-            }
+            var transaction = await CaptureOrInitTransaction(method, cancellationToken);
+            // transaction shall be registered within async context of this method
+            if (null != transaction) RegisterTransactionForAsyncContext(transaction);
+            bool isOwner = (null != transaction);
 
             try
             {
@@ -260,11 +237,9 @@ namespace Apskaita5.DAL.Common
             }
             catch (Exception ex)
             {
-                Log(ex);
-                if (isOwner && IsTransactionInProgress) TransactionRollback(ex);                 
+                HandleTransactionEx(ex, isOwner);
                 throw;
-            }
-
+            }   
         }
 
         /// <summary>
@@ -277,21 +252,12 @@ namespace Apskaita5.DAL.Common
         /// <param name="cancellationToken">a cancelation token (if any); it is not used by the transaction
         /// infrastructure, only passed to the method that might use it and throw OperationCanceledException</param>
         public async Task ExecuteInTransactionAsync<T>(Func<SqlAgentBase, T, CancellationToken, Task> method, 
-            T parameter, CancellationToken cancellationToken)
+            T parameter, CancellationToken cancellationToken = default(CancellationToken))
         {
-
-            bool isOwner = false;
-
-            if (IsTransactionInProgress)
-            {
-                if (null == method) TransactionRollback(new ArgumentNullException(nameof(method)));
-            }
-            else
-            {
-                if (null == method) throw new ArgumentNullException(nameof(method));
-                RegisterTransactionForAsyncContext(await TransactionBeginAsync(cancellationToken).ConfigureAwait(false));
-                isOwner = true;
-            }
+            var transaction = await CaptureOrInitTransaction(method, cancellationToken);
+            // transaction shall be registered within async context of this method
+            if (null != transaction) RegisterTransactionForAsyncContext(transaction);
+            bool isOwner = (null != transaction);
 
             try
             {
@@ -300,11 +266,9 @@ namespace Apskaita5.DAL.Common
             }
             catch (Exception ex)
             {
-                Log(ex);
-                if (isOwner && IsTransactionInProgress) TransactionRollback(ex);                   
+                HandleTransactionEx(ex, isOwner);
                 throw;
-            }
-
+            }  
         }
 
         /// <summary>
@@ -317,27 +281,12 @@ namespace Apskaita5.DAL.Common
         /// <param name="cancellationToken">a cancelation token (if any); it is not used by the transaction
         /// infrastructure, only passed to the method that might use it and throw OperationCanceledException</param>
         public async Task<TResult> ExecuteInTransactionAsync<TResult>(Func<CancellationToken, Task<TResult>> method,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken = default(CancellationToken))
         {
-
-            bool isOwner = false;
-
-            if (IsTransactionInProgress)
-            {
-
-                if (null == method) TransactionRollback(new ArgumentNullException(nameof(method)));
-                return default(TResult);
-
-            }
-            else
-            {
-
-                if (null == method) throw new ArgumentNullException(nameof(method));
-
-                RegisterTransactionForAsyncContext(await TransactionBeginAsync(cancellationToken).ConfigureAwait(false));
-                isOwner = true;
-
-            }
+            var transaction = await CaptureOrInitTransaction(method, cancellationToken);
+            // transaction shall be registered within async context of this method
+            if (null != transaction) RegisterTransactionForAsyncContext(transaction);
+            bool isOwner = (null != transaction);
 
             try
             {
@@ -347,11 +296,9 @@ namespace Apskaita5.DAL.Common
             }
             catch (Exception ex)
             {
-                Log(ex);
-                if (isOwner && IsTransactionInProgress) TransactionRollback(ex);
+                HandleTransactionEx(ex, isOwner);
                 throw;
-            }
-
+            }     
         }
 
         /// <summary>
@@ -364,27 +311,12 @@ namespace Apskaita5.DAL.Common
         /// <param name="cancellationToken">a cancelation token (if any); it is not used by the transaction
         /// infrastructure, only passed to the method that might use it and throw OperationCanceledException</param>
         public async Task<TResult> ExecuteInTransactionAsync<TResult>(Func<SqlAgentBase, CancellationToken, 
-            Task<TResult>> method, CancellationToken cancellationToken)
+            Task<TResult>> method, CancellationToken cancellationToken = default(CancellationToken))
         {
-
-            bool isOwner = false;
-
-            if (IsTransactionInProgress)
-            {
-
-                if (null == method) TransactionRollback(new ArgumentNullException(nameof(method)));
-                return default(TResult);
-
-            }
-            else
-            {
-
-                if (null == method) throw new ArgumentNullException(nameof(method));
-
-                RegisterTransactionForAsyncContext(await TransactionBeginAsync(cancellationToken).ConfigureAwait(false));
-                isOwner = true;
-
-            }
+            var transaction = await CaptureOrInitTransaction(method, cancellationToken);
+            // transaction shall be registered within async context of this method
+            if (null != transaction) RegisterTransactionForAsyncContext(transaction);
+            bool isOwner = (null != transaction);
 
             try
             {
@@ -394,11 +326,9 @@ namespace Apskaita5.DAL.Common
             }
             catch (Exception ex)
             {
-                Log(ex);
-                if (isOwner && IsTransactionInProgress) TransactionRollback(ex);
+                HandleTransactionEx(ex, isOwner);
                 throw;
-            }
-
+            }  
         }
 
         /// <summary>
@@ -412,27 +342,12 @@ namespace Apskaita5.DAL.Common
         /// <param name="cancellationToken">a cancelation token (if any); it is not used by the transaction
         /// infrastructure, only passed to the method that might use it and throw OperationCanceledException</param>
         public async Task<TResult> ExecuteInTransactionAsync<T, TResult>(Func<SqlAgentBase, T, CancellationToken, 
-            Task<TResult>> method, T parameter, CancellationToken cancellationToken)
+            Task<TResult>> method, T parameter, CancellationToken cancellationToken = default(CancellationToken))
         {
-
-            bool isOwner = false;
-
-            if (IsTransactionInProgress)
-            {
-
-                if (null == method) TransactionRollback(new ArgumentNullException(nameof(method)));
-                return default(TResult);
-
-            }
-            else
-            {
-
-                if (null == method) throw new ArgumentNullException(nameof(method));
-
-                RegisterTransactionForAsyncContext(await TransactionBeginAsync(cancellationToken).ConfigureAwait(false));
-                isOwner = true;
-
-            }
+            var transaction = await CaptureOrInitTransaction(method, cancellationToken);
+            // transaction shall be registered within async context of this method
+            if (null != transaction) RegisterTransactionForAsyncContext(transaction);
+            bool isOwner = (null != transaction);
 
             try
             {
@@ -442,11 +357,31 @@ namespace Apskaita5.DAL.Common
             }
             catch (Exception ex)
             {
-                Log(ex);
-                if (isOwner && IsTransactionInProgress) TransactionRollback(ex);                
+                HandleTransactionEx(ex, isOwner);                
                 throw;
-            }
+            }     
+        }
 
+        private async Task<object> CaptureOrInitTransaction<T>(T method, CancellationToken ct)
+        {
+            if (IsTransactionInProgress)
+            {
+                if (null == method) TransactionRollback(new ArgumentNullException(nameof(method)));
+
+                return null;
+            }
+            else
+            {
+                if (null == method) throw new ArgumentNullException(nameof(method));
+
+                return await TransactionBeginAsync(ct).ConfigureAwait(false);
+            }
+        }
+
+        private void HandleTransactionEx(Exception ex, bool isTransactionOwner)
+        {
+            Log(ex);
+            if (isTransactionOwner && IsTransactionInProgress) TransactionRollback(ex);
         }
 
         /// <summary>
@@ -608,8 +543,8 @@ namespace Apskaita5.DAL.Common
             if (null == ex) LogAndThrow(new ArgumentNullException(nameof(ex)));
             if (ex.GetType() == typeof(AggregateException))
                 ex = ((AggregateException)ex).Flatten().InnerExceptions[0];
-            _Logger?.LogError(ex, ex.Message, null);
-            throw ex;
+            _Logger?.LogError(ex, ex.Message);
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ex).Throw(); 
         }
 
         /// <summary>
@@ -621,7 +556,7 @@ namespace Apskaita5.DAL.Common
             if (null == ex) LogAndThrow(new ArgumentNullException(nameof(ex)));
             if (ex.GetType() == typeof(AggregateException))
                 ex = ((AggregateException)ex).Flatten().InnerExceptions[0];
-            _Logger?.LogError(ex, ex.Message, null);
+            _Logger?.LogError(ex, ex.Message);
         }
 
         #region IDisposable Support

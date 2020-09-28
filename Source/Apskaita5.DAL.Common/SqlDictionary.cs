@@ -93,10 +93,11 @@ namespace Apskaita5.DAL.Common
 
             _tokenDictionary = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
 
+            var repository = new SqlRepository();
+
             foreach (var filePath in GetSqlRepositoryFiles())
-            {
-                var repository = new SqlRepository();
-                repository.LoadFile(filePath);
+            {                   
+                repository.LoadFile(filePath, true);
                 try
                 {
                     if (_tokenDictionary.ContainsKey(repository.SqlImplementation.Trim()))

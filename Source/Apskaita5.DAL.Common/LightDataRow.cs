@@ -693,7 +693,7 @@ namespace Apskaita5.DAL.Common
         /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
         public bool? GetNullableBoolean(int i)
         {
-            return GetValueForCast(i, true).GetBooleanNullable();
+            return GetValueForCast(i, false).GetBooleanNullable();
         }
 
         /// <summary>
@@ -709,7 +709,7 @@ namespace Apskaita5.DAL.Common
         /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
         public byte? GetByteNullable(int i)
         {
-            return GetValueForCast(i, true).GetByteNullable();
+            return GetValueForCast(i, false).GetByteNullable();
         }
 
         /// <summary>
@@ -721,7 +721,7 @@ namespace Apskaita5.DAL.Common
         /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
         public sbyte? GetSByteNullable(int i)
         {
-            return GetValueForCast(i, true).GetSByteNullable();
+            return GetValueForCast(i, false).GetSByteNullable();
         }
                 
         /// <summary>
@@ -735,7 +735,7 @@ namespace Apskaita5.DAL.Common
         /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
         public char? GetCharNullable(int i)
         {
-            return GetValueForCast(i, true).GetCharNullable();
+            return GetValueForCast(i, false).GetCharNullable();
         }
 
         /// <summary>
@@ -764,7 +764,7 @@ namespace Apskaita5.DAL.Common
         /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
         public short? GetInt16Nullable(int i)
         {
-            return GetValueForCast(i, true).GetInt16Nullable();
+            return GetValueForCast(i, false).GetInt16Nullable();
         }
 
         /// <summary>
@@ -779,7 +779,7 @@ namespace Apskaita5.DAL.Common
         /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
         public int? GetInt32Nullable(int i)
         {
-            return GetValueForCast(i, true).GetInt32Nullable();
+            return GetValueForCast(i, false).GetInt32Nullable();
         }
 
         /// <summary>
@@ -794,7 +794,7 @@ namespace Apskaita5.DAL.Common
         /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
         public long? GetInt64Nullable(int i)
         {
-            return GetValueForCast(i, true).GetInt64Nullable();
+            return GetValueForCast(i, false).GetInt64Nullable();
         }
 
         /// <summary>
@@ -808,7 +808,7 @@ namespace Apskaita5.DAL.Common
         /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
         public float? GetFloatNullable(int i)
         {
-            return GetValueForCast(i, true).GetFloatNullable();
+            return GetValueForCast(i, false).GetFloatNullable();
         }
 
         /// <summary>
@@ -823,7 +823,7 @@ namespace Apskaita5.DAL.Common
         /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
         public double? GetDoubleNullable(int i)
         {
-            return GetValueForCast(i, true).GetDoubleNullable();
+            return GetValueForCast(i, false).GetDoubleNullable();
         }
 
         /// <summary>
@@ -837,7 +837,7 @@ namespace Apskaita5.DAL.Common
         /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
         public decimal? GetDecimalNullable(int i)
         {
-            return GetValueForCast(i, true).GetDecimalNullable();
+            return GetValueForCast(i, false).GetDecimalNullable();
         }
 
         /// <summary>
@@ -855,11 +855,27 @@ namespace Apskaita5.DAL.Common
         public DateTime? GetDateTimeNullable(int i)
         {
             if (_table.DateTimeFormats.IsNull() || _table.DateTimeFormats.Count < 1)
-            { return GetValueForCast(i, true).GetDateTimeNullable(); }
+            { return GetValueForCast(i, false).GetDateTimeNullable(); }
             else
-            { return GetValueForCast(i, true).GetDateTimeNullable(_table.DateTimeFormats.ToArray()); }
+            { return GetValueForCast(i, false).GetDateTimeNullable(_table.DateTimeFormats.ToArray()); }
         }
-        
+
+        /// <summary>
+        /// Gets the data stored in the column specified as an enumeration of type T. 
+        /// </summary>
+        /// <typeparam name="T">The type of the enumeration.</typeparam>
+        /// <param name="i">The zero-based index of the column.</param>
+        /// <remarks>Does not support flags.
+        /// Gets an enum value by converting int value (if it is int value) to the appropriate enum value
+        /// or by parsing string value (if it is string value) to the appropriate enum value.</remarks>
+        /// <exception cref="FormatException">The object value is not in an appropriate format 
+        /// or string/int value is not defined for the enumeration.</exception>
+        /// <exception cref="ArgumentException">Type T is not an enumeration.</exception>
+        public T? GetEnumNullable<T>(int i) where T : struct
+        {
+            return GetValueForCast(i, false).GetEnumNullable<T>();
+        }
+
         #endregion
 
         #region By Column Name
@@ -1125,9 +1141,9 @@ namespace Apskaita5.DAL.Common
         /// and parse the string.</remarks>
         /// <exception cref="IndexOutOfRangeException">The column index is out of range.</exception>
         /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
-        public bool? GetNullableBoolean(string columnName)
+        public bool? GetBooleanNullable(string columnName)
         {
-            return GetValueForCast(columnName, true).GetBooleanNullable();
+            return GetValueForCast(columnName, false).GetBooleanNullable();
         }
 
         /// <summary>
@@ -1143,7 +1159,7 @@ namespace Apskaita5.DAL.Common
         /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
         public byte? GetByteNullable(string columnName)
         {
-            return GetValueForCast(columnName, true).GetByteNullable();
+            return GetValueForCast(columnName, false).GetByteNullable();
         }
 
         /// <summary>
@@ -1155,7 +1171,7 @@ namespace Apskaita5.DAL.Common
         /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
         public sbyte? GetSByteNullable(string columnName)
         {
-            return GetValueForCast(columnName, true).GetSByteNullable();
+            return GetValueForCast(columnName, false).GetSByteNullable();
         }
 
         /// <summary>
@@ -1169,7 +1185,7 @@ namespace Apskaita5.DAL.Common
         /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
         public char? GetCharNullable(string columnName)
         {
-            return GetValueForCast(columnName, true).GetCharNullable();
+            return GetValueForCast(columnName, false).GetCharNullable();
         }
 
         /// <summary>
@@ -1198,7 +1214,7 @@ namespace Apskaita5.DAL.Common
         /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
         public short? GetInt16Nullable(string columnName)
         {
-            return GetValueForCast(columnName, true).GetInt16Nullable();
+            return GetValueForCast(columnName, false).GetInt16Nullable();
         }
 
         /// <summary>
@@ -1213,7 +1229,7 @@ namespace Apskaita5.DAL.Common
         /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
         public int? GetInt32Nullable(string columnName)
         {
-            return GetValueForCast(columnName, true).GetInt32Nullable();
+            return GetValueForCast(columnName, false).GetInt32Nullable();
         }
 
         /// <summary>
@@ -1228,7 +1244,7 @@ namespace Apskaita5.DAL.Common
         /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
         public long? GetInt64Nullable(string columnName)
         {
-            return GetValueForCast(columnName, true).GetInt64Nullable();
+            return GetValueForCast(columnName, false).GetInt64Nullable();
         }
 
         /// <summary>
@@ -1242,7 +1258,7 @@ namespace Apskaita5.DAL.Common
         /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
         public float? GetFloatNullable(string columnName)
         {
-            return GetValueForCast(columnName, true).GetFloatNullable();
+            return GetValueForCast(columnName, false).GetFloatNullable();
         }
 
         /// <summary>
@@ -1257,7 +1273,7 @@ namespace Apskaita5.DAL.Common
         /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
         public double? GetDoubleNullable(string columnName)
         {
-            return GetValueForCast(columnName, true).GetDoubleNullable();
+            return GetValueForCast(columnName, false).GetDoubleNullable();
         }
 
         /// <summary>
@@ -1271,7 +1287,7 @@ namespace Apskaita5.DAL.Common
         /// <exception cref="FormatException">The object value is not in an appropriate format.</exception>
         public decimal? GetDecimalNullable(string columnName)
         {
-            return GetValueForCast(columnName, true).GetDecimalNullable();
+            return GetValueForCast(columnName, false).GetDecimalNullable();
         }
 
         /// <summary>
@@ -1289,9 +1305,25 @@ namespace Apskaita5.DAL.Common
         public DateTime? GetDateTimeNullable(string columnName)
         {
             if (_table.DateTimeFormats.IsNull() || _table.DateTimeFormats.Count < 1)
-            { return GetValueForCast(columnName, true).GetDateTimeNullable(); }
+            { return GetValueForCast(columnName, false).GetDateTimeNullable(); }
             else
-            { return GetValueForCast(columnName, true).GetDateTimeNullable(_table.DateTimeFormats.ToArray()); }
+            { return GetValueForCast(columnName, false).GetDateTimeNullable(_table.DateTimeFormats.ToArray()); }
+        }
+
+        /// <summary>
+        /// Gets the data stored in the column specified as an enumeration of type T. 
+        /// </summary>
+        /// <typeparam name="T">The type of the enumeration.</typeparam>
+        /// <param name="columnName">A name of the column.</param>
+        /// <remarks>Does not support flags.
+        /// Gets an enum value by converting int value (if it is int value) to the appropriate enum value
+        /// or by parsing string value (if it is string value) to the appropriate enum value.</remarks>
+        /// <exception cref="FormatException">The object value is not in an appropriate format 
+        /// or string/int value is not defined for the enumeration.</exception>
+        /// <exception cref="ArgumentException">Type T is not an enumeration.</exception>
+        public T? GetEnumNullable<T>(string columnName) where T : struct
+        {
+            return GetValueForCast(columnName, false).GetEnumNullable<T>();
         }
 
         #endregion

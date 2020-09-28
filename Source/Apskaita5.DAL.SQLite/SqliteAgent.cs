@@ -75,12 +75,7 @@ namespace Apskaita5.DAL.SQLite
         public SqliteAgent(string baseConnectionString, string databaseName, ISqlDictionary sqlDictionary, ILogger logger)
             : base(baseConnectionString, true, databaseName, sqlDictionary, logger)
         {
-            if (databaseName.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(databaseName));
-            if (logger != null)
-            {
-                SQLiteLog.Log += SQLiteLog_Log;
-                SQLiteLog.Enabled = true;
-            }            
+            if (databaseName.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(databaseName));                        
         }
 
         /// <summary>
@@ -88,16 +83,6 @@ namespace Apskaita5.DAL.SQLite
         /// </summary>
         /// <param name="agentToClone">an SqliteAgent instance to clone</param>
         private SqliteAgent(SqliteAgent agentToClone) : base(agentToClone) { }
-
-        private void SQLiteLog_Log(object sender, LogEventArgs e)
-        {
-            SQLiteErrorCode errorCode = SQLiteErrorCode.Unknown;
-            try { errorCode = (SQLiteErrorCode)e.ErrorCode; }
-            catch (Exception) { }
-            if (errorCode == SQLiteErrorCode.Warning) _Logger.LogWarning(e.Message);
-            else if (errorCode != SQLiteErrorCode.Ok) _Logger.LogError(e.Message);
-        }
-
 
 
         /// <summary>
@@ -266,16 +251,18 @@ namespace Apskaita5.DAL.SQLite
         /// <param name="ex">an exception that caused the rollback</param>
         protected override void TransactionRollback(Exception ex)
         {
-            
-            try
+            if (!CurrentTransaction.Connection.IsNull() && CurrentTransaction.Connection.State == ConnectionState.Open)
             {
-                CurrentTransaction.Rollback();
-            }
-            catch (Exception e)
-            {
-                CleanUpTransaction();
-                LogAndThrow((ex ?? new Exception(Properties.Resources.ManualRollbackException)).WrapSqlException("ROLLBACK", e));
-            }
+                try
+                {
+                    CurrentTransaction.Rollback();
+                }
+                catch (Exception e)
+                {
+                    CleanUpTransaction();
+                    LogAndThrow((ex ?? new Exception(Properties.Resources.ManualRollbackException)).WrapSqlException("ROLLBACK", e));
+                }
+            }                    
 
             CleanUpTransaction();            
 
@@ -608,9 +595,20 @@ namespace Apskaita5.DAL.SQLite
         }
 
         #endregion
-        
+
+        private bool _isFirstRun = true;
+
         internal async Task<SQLiteConnection> OpenConnectionAsync()
         {
+            if (_isFirstRun)
+            {
+                if (null != _Logger && UseNativeLogging)
+                {
+                    SQLiteLog.Log += SQLiteLog_Log;
+                    SQLiteLog.Enabled = true;
+                }
+                _isFirstRun = false;
+            }
 
             SQLiteConnection result;
             if (BaseConnectionString.Trim().StartsWith(";"))
@@ -687,6 +685,17 @@ namespace Apskaita5.DAL.SQLite
 
         }
 
+        private void SQLiteLog_Log(object sender, LogEventArgs e)
+        {
+            if (null == _Logger) return;
+
+            SQLiteErrorCode errorCode = SQLiteErrorCode.Unknown;
+            try { errorCode = (SQLiteErrorCode)e.ErrorCode; }
+            catch (Exception) { }
+
+            if (errorCode == SQLiteErrorCode.Warning) _Logger.LogWarning(e.Message);
+            else if (errorCode != SQLiteErrorCode.Ok) _Logger.LogError(e.Message);
+        }
 
 
         private void AddParams(SQLiteCommand command, SqlParam[] parameters)
@@ -860,6 +869,7 @@ namespace Apskaita5.DAL.SQLite
 
         protected override void DisposeManagedState()
         {
+            if (null == _Logger || !UseNativeLogging) return;
             try { SQLiteLog.Log -= SQLiteLog_Log; }
             catch (Exception) { }
         }
